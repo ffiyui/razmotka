@@ -268,6 +268,7 @@ function draw() {
   const d = window.devicePixelRatio || 1;
   ctx.setTransform(d, 0, 0, d, 0, 0);
   ctx.clearRect(0, 0, cv.clientWidth, cv.clientHeight);
+  if (window.tilesDraw && !F.schematic) tilesDraw(ctx, d);      // карта из интернета (js/tiles.js)
   const u = underlayNow();
   if (u && !F.schematic) {
     const t = u.t, s = V.s * d, c = V.c, n = V.n;   // пиксель картинки -> координаты -> наклон -> экран
@@ -285,7 +286,7 @@ function draw() {
   if ($('lRazm').checked) layer(P.razm, 4, MS.razm, z);
   if ($('lLeft').checked) layer(F.left, 4, MS.left, z);
   if ($('lLost').checked) layer(F.lost, 4, MS.lost, z);
-  if (!B && !u) {
+  if (!B && !u && !(window.TILES && TILES.last)) {
     ctx.fillStyle = '#63636A'; ctx.font = '15px -apple-system,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('Карта появится, когда на поле будет оборудование или заполнится лист SPS', cv.clientWidth / 2, cv.clientHeight / 2);
   }

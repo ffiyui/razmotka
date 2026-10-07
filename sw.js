@@ -2,7 +2,7 @@
    Версию и список файлов между маркерами пишет tools/build_sw.py (запускать перед выдачей), руками их не править.
    Новая версия ставится, но не включается сама: страница показывает «Доступна новая версия — Обновить»
    и по кнопке присылает сюда сообщение SKIP_WAITING. Старые кэши удаляются при включении новой версии. */
-const VERSION = /*VERSION*/'693f77ad9120'/*END*/;
+const VERSION = /*VERSION*/'863809fa22c9'/*END*/;
 const FILES = /*FILES*/[
   "./",
   "index.html",
@@ -33,6 +33,7 @@ const FILES = /*FILES*/[
   "js/sheet.js",
   "js/map.js",
   "js/geo.js",
+  "js/tiles.js",
   "js/stats.js",
   "js/check.js",
   "js/data.js",
@@ -63,8 +64,25 @@ self.addEventListener('message', e => {
   else if (e.data.type === 'VERSION' && e.source) e.source.postMessage({type: 'VERSION', version: VERSION});
 });
 
+/* Плитки карты-подложки (js/tiles.js): сначала из телефона, иначе из сети с сохранением. Кэш отдельный и
+   переживает обновление программы. Ответ без CORS (opaque) нельзя отдать запросу с CORS - тогда качаем заново. */
+const TILE_HOSTS = /(^|\.)google\.com$|(^|\.)arcgisonline\.com$|(^|\.)openstreetmap\.org$/, TILES = 'rz-tiles-v1', TILES_MAX = 12000;
+let tilePuts = 0;
+async function tileResponse(req) {
+  const cache = await caches.open(TILES);
+  const hit = await cache.match(req.url);
+  if (hit && !(hit.type === 'opaque' && req.mode === 'cors')) return hit;
+  const res = await fetch(req);
+  if (res.ok || res.type === 'opaque') {
+    cache.put(req.url, res.clone()).catch(() => {});
+    if (++tilePuts % 500 === 0) cache.keys().then(k => { if (k.length > TILES_MAX) k.slice(0, k.length - TILES_MAX + 1000).forEach(r => cache.delete(r)); });
+  }
+  return res;
+}
+
 self.addEventListener('fetch', e => {
   const req = e.request, u = new URL(req.url);
+  if (req.method === 'GET' && TILE_HOSTS.test(u.hostname)) return e.respondWith(tileResponse(req));   // плитки карты-подложки
   if (req.method !== 'GET' || u.origin !== self.location.origin) return;       // чужое и не GET - мимо кэша
   if (u.pathname.startsWith(BASE + 'api/')) return;                            // данные программы не кэшируются
   if (req.mode === 'navigate' && u.searchParams.has('remote')) return;         // ?remote: проверка на настоящем сервере

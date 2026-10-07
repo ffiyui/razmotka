@@ -99,7 +99,13 @@
         <button class="btn small" id="gCalib" hidden title="Встаньте на пикет с известным номером: карта сдвинется так, чтобы вы оказались на нём">Я стою на пикете…</button>
         <button class="btn small" id="gCalibReset" hidden>Сбросить привязку</button>
       </div>
-      <div class="side-title">Подложки</div>
+      <div class="side-title">Карта из интернета</div>
+      <select id="tSrc" aria-label="Карта-подложка из интернета"></select>
+      <label class="range" id="tAlphaRow" hidden>Прозрачность<input type="range" id="tAlpha" min="0.1" max="1" step="0.05" value="1"></label>
+      <button class="btn small" id="tSave" hidden>Сохранить участок для работы без сети</button>
+      <div class="gstat" id="tStat"></div>
+      <button class="btn small" id="tClear" hidden>Удалить сохранённые карты</button>
+      <div class="side-title">Подложки из файла</div>
       <div class="ulist" id="uList"></div>
       <label class="range" id="uAlphaRow" hidden>Прозрачность<input type="range" id="uAlpha" min="0.1" max="1" step="0.05" value="0.7"></label>
       <button class="btn small" id="uBtn">Добавить подложку</button>
@@ -236,6 +242,7 @@
 <script src="js/sheet.js"></script>
 <script src="js/map.js"></script>
 <script src="js/geo.js"></script>
+<script src="js/tiles.js"></script>
 <script src="js/stats.js"></script>
 <script src="js/check.js"></script>
 <script src="js/data.js"></script>
