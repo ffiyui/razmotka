@@ -1,5 +1,5 @@
 /* Переходы между экранами и запуск */
-const loaders={field:loadField,stats:loadStats,check:loadCheck,data:async()=>{}};
+const loaders={field:loadField,stats:loadStats,check:loadCheck,data:async()=>{if(typeof prjFill==='function')prjFill()},tracks:async()=>{await loadTracks();tracksRender()}};
 const START='razm';
 /* Смена экрана с плавным переходом: прежний гаснет, новый проявляется. Если за это время выбран
    ещё один экран, показывается только последний выбранный. */

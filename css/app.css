@@ -27,6 +27,7 @@
   --accent:#007AFF; --accent-dark:#0062CC; --accent-soft:rgba(0,122,255,.13);
   --razm:#F27A0A; --razm-dark:#B95400; --razm-soft:rgba(255,149,0,.16);
   --blue:#007AFF; --blue-dark:#0062CC; --blue-soft:rgba(0,122,255,.13);
+  --razb:#AF52DE; --razb-dark:#8232B0; --razb-soft:rgba(175,82,222,.15);
   --green:#34C759; --green-dark:#1F7A36; --green-soft:rgba(52,199,89,.17);
   --danger:#D70015; --danger-soft:rgba(255,59,48,.13);
   --acc:var(--accent); --acc-dark:var(--accent-dark); --acc-soft:var(--accent-soft);
@@ -171,7 +172,7 @@ td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
 .empty{padding:34px 22px;color:var(--muted);text-align:center;font-size:15px}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:baseline}
 .c-razm{background:var(--razm)} .c-podm{background:var(--blue)}
-.t-razm{color:var(--razm-dark)} .t-podm{color:var(--blue-dark)}
+.t-razm{color:var(--razm-dark)} .t-podm{color:var(--blue-dark)} .t-razb{color:var(--razb-dark)}
 .figures{display:flex;gap:12px;flex-wrap:wrap;margin:4px 0 20px}
 .figures div{min-width:150px;background:var(--panel);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:var(--radius-md);padding:14px 20px;box-shadow:var(--shadow),var(--edge)}
 .figures b{display:block;font:700 28px/1.15 var(--display);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
@@ -292,6 +293,7 @@ body.mapfull{overflow:hidden;overscroll-behavior:none}
 
 /* ---------- лист журнала ---------- */
 .acc-razm{--acc:var(--razm);--acc-dark:var(--razm-dark);--acc-soft:var(--razm-soft);--acc-on:var(--razm-on,#fff);--acc-ink:var(--razm-ink,var(--razm))}
+.acc-razb{--acc:var(--razb);--acc-dark:var(--razb-dark);--acc-soft:var(--razb-soft);--acc-on:var(--razb-on,#fff);--acc-ink:var(--razb-ink,var(--razb))}
 .acc-podm{--acc:var(--blue);--acc-dark:var(--blue-dark);--acc-soft:var(--blue-soft);--acc-on:var(--blue-on,#fff);--acc-ink:var(--blue-ink,var(--blue))}
 .acc-plain{--acc:var(--accent);--acc-dark:var(--accent-dark);--acc-soft:var(--accent-soft)}
 .page.sheet.on{display:flex;flex-direction:column;height:calc(100vh - 46px);height:calc(100dvh - 46px - var(--sat) - var(--sab));min-height:420px}
@@ -316,6 +318,9 @@ button.sh-word:hover,button.sh-word:focus-visible{background:var(--acc-soft)}
 .sh-legend .mk{display:inline-block;width:10px;height:10px;border-radius:50%;margin-left:12px}
 .sh-legend .mk.done{background:var(--green)}
 .sh-legend .mk.draft{background:var(--acc-soft);border:1.5px solid var(--acc)}
+.sh-legend .mk.got{background:var(--acc)}
+.sh-got[hidden]{display:none}
+.sh-got .mk{margin-right:6px}
 .sh-save{min-width:84px;text-align:right}
 
 /* ---------- таблица как в Excel на стеклянной плашке ---------- */
@@ -337,6 +342,7 @@ button.sh-word:hover,button.sh-word:focus-visible{background:var(--acc-soft)}
 .gx-n{position:sticky;left:0;z-index:3;flex:0 0 var(--gx-gut);display:flex;align-items:center;justify-content:center;gap:5px;background:rgba(240,243,248,.92);border-right:1px solid var(--line);border-bottom:1px solid var(--line-soft);color:var(--faint);font-size:12px;font-variant-numeric:tabular-nums;cursor:pointer}
 .gx-r.done .gx-n::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--green)}
 .gx-r.draft .gx-n::before{content:"";width:5px;height:5px;border-radius:50%;border:1.5px solid var(--acc)}
+.gx-r.draft.got .gx-n::before{background:var(--acc)}
 .gx-c{flex:0 0 auto;padding:0 9px;line-height:calc(var(--gx-row) - 1px);border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(255,255,255,.5);font-variant-numeric:tabular-nums}
 .gx-c.k-date,.gx-c.k-int,.gx-c.k-calc{text-align:center}
 .gx-c.k-num{text-align:right}
@@ -628,3 +634,117 @@ body.kbd{--sab:0px}
 .maptools .icon-btn.on{color:#0A84FF}
 .maptools .icon-btn.on[aria-pressed="true"]{background:rgba(10,132,255,.16);box-shadow:inset 0 0 0 1.5px rgba(10,132,255,.55)}
 .gps .btn.on{background:rgba(10,132,255,.14);color:#0A84FF;box-shadow:inset 0 0 0 1.5px rgba(10,132,255,.5)}
+
+/* ---------- задания, выполнение в поле, треки, поиск, контуры (js/work.js) ---------- */
+.side-n{font-weight:600;letter-spacing:0;color:var(--muted);margin-left:4px}
+.dialog.wide{max-width:720px}
+/* кто работает на этом телефоне */
+.mebox{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px}
+.mebox:empty{display:none}
+.me-t{font-size:13.5px;color:var(--muted);margin-right:2px}
+.me-chip{display:inline-flex;align-items:center;gap:7px;margin:0;padding:7px 14px 7px 10px;border-radius:999px;background:var(--chip);color:var(--ink);font-size:14px;font-weight:400;cursor:pointer;min-height:36px}
+.me-chip input{margin:0;padding:0}
+.me-chip.on{background:var(--accent-soft);color:var(--accent-dark);font-weight:600}
+/* список заданий над таблицей */
+.tkbox{margin:0 0 10px;border-radius:var(--radius-sm,14px);background:var(--glass-strong);box-shadow:0 1px 2px rgba(var(--tint),.06)}
+.tkbox[hidden]{display:none}
+.tkbox summary{display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:14.5px;cursor:pointer;list-style:none;min-height:44px}
+.tkbox summary::-webkit-details-marker{display:none}
+.tkbox summary::before{content:"›";font-size:18px;line-height:1;color:var(--faint);transition:transform .2s}
+.tkbox[open] summary::before{transform:rotate(90deg)}
+.tkbox summary span{color:var(--acc-dark,var(--muted));font-size:13.5px}
+.tkbox summary .tk-mine-l{margin:0 0 0 auto;font-size:13.5px}
+.tklist{max-height:min(38vh,300px);overflow-y:auto;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line-soft)}
+.tkrow{display:flex;align-items:center;gap:10px;padding:8px 10px 8px 14px;border-bottom:1px solid var(--line-soft)}
+.tkrow:last-child{border-bottom:0}
+.tkrow.mine{background:var(--acc-soft)}
+.tk-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.tk-t b{font-weight:600;font-variant-numeric:tabular-nums}
+.tk-t span{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tkrow .btn.small{flex:0 0 auto;min-height:36px}
+/* задание на карте: плашка внизу с ходом выполнения */
+.taskbar{position:absolute;left:12px;right:12px;bottom:12px;z-index:5;max-width:460px;margin:0 auto;padding:10px 12px 12px 14px;border-radius:18px;
+  background:var(--panel-strong);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);box-shadow:0 1px 2px rgba(var(--tint),.1),0 16px 36px -16px rgba(var(--tint),.55);border-top:3px solid var(--tk,var(--accent))}
+.taskbar[hidden]{display:none}
+.tk-head{display:flex;align-items:center;gap:8px}
+.tk-head b{flex:1;min-width:0;font-size:15px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tk-head .icon-btn{width:28px;height:28px;font-size:13px;flex:0 0 auto}
+.tk-sub{font-size:13px;color:var(--muted);line-height:1.35;margin-top:2px;font-variant-numeric:tabular-nums}
+.tk-prog{height:6px;border-radius:3px;background:var(--chip);margin-top:8px;overflow:hidden}
+.tk-prog[hidden]{display:none}
+.tk-prog i{display:block;height:100%;width:0;border-radius:3px;background:var(--tk,var(--accent));transition:width .3s}
+.tk-acts{display:flex;gap:8px;margin-top:10px}
+.tk-acts .btn{flex:1 1 0;min-height:40px;justify-content:center;white-space:nowrap;padding:0 12px;font-size:14px}
+.tk-acts #tkPause{flex:0 0 auto;min-width:104px}
+.tk-acts .btn[hidden]{display:none}
+.tk-acts .btn.main{background:var(--tk,var(--accent));color:#fff}
+.mapnote{transition:opacity .2s}
+.taskbar:not([hidden])~.mapnote{display:none}
+.recnote{position:absolute;left:14px;top:14px;z-index:4;font-size:12.5px;font-weight:550;color:#fff;background:rgba(215,0,21,.9);padding:5px 12px 5px 24px;border-radius:999px;font-variant-numeric:tabular-nums}
+.recnote::before{content:"";position:absolute;left:10px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:#fff;animation:recBlink 1.2s infinite}
+.recnote[hidden]{display:none}
+.recnote{pointer-events:none}
+@keyframes recBlink{50%{opacity:.25}}
+.icon-btn.on{background:var(--accent);color:#fff}
+#tRec.on{background:#D70015;color:#fff}
+/* треки */
+.trrow{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap}
+.trrow:last-child{border-bottom:0}
+.trrow input{margin:0;flex:0 0 auto;width:20px;height:20px}
+.tr-t{flex:1 1 180px;min-width:0;display:flex;flex-direction:column}
+.tr-t b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tr-t span{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.trrow .btn.small{min-height:36px}
+/* поиск пикетов */
+.findbox{position:absolute;top:58px;right:14px;z-index:5;display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:18px;max-width:calc(100% - 28px);
+  background:var(--panel-strong);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);box-shadow:0 1px 2px rgba(var(--tint),.1),0 16px 36px -16px rgba(var(--tint),.55);
+  transform-origin:100% 0;animation:findIn .22s cubic-bezier(.2,.8,.2,1)}
+.findbox[hidden]{display:none}
+@keyframes findIn{from{opacity:0;transform:translateY(-10px) scale(.94)}to{opacity:1;transform:none}}
+.find-row{display:flex;align-items:center;gap:6px}
+.find-row input{width:74px;min-width:0;flex:1 1 60px;height:36px;padding:0 10px;border-radius:10px;font-size:16px;font-variant-numeric:tabular-nums}
+.find-row .btn.small{min-height:36px;padding:0 14px;flex:0 0 auto}
+.find-row .icon-btn{width:34px;height:34px;font-size:19px;line-height:1;flex:0 0 auto;color:var(--ink)}
+#findRows{display:flex;flex-direction:column;gap:6px;max-height:36vh;overflow-y:auto}
+.find-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12.5px;color:var(--muted);padding:0 2px}
+.find-foot:has(#findNote:empty):has(#findClear[hidden]){display:none}
+.find-link{border:0;background:none;padding:4px 0;font-size:13px;color:var(--accent-dark);cursor:pointer}
+/* контуры DXF */
+.dxlist{max-height:190px;overflow-y:auto}
+.dxrow{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:10px;font-size:14px;min-height:36px}
+.dxrow input{margin:0 2px 0 4px;flex:0 0 auto}
+.dxrow .dxsw{flex:0 0 auto;width:18px;height:18px;border-radius:6px;border:2px solid var(--c);background:color-mix(in srgb,var(--c) 28%,transparent)}
+.dxrow .uname{cursor:pointer}
+.dxrow .dx-n{color:var(--faint);font-size:12px;font-variant-numeric:tabular-nums}
+/* табло и окно файла проекта */
+.board{max-height:40vh;overflow:auto;border-radius:12px;border:1px solid var(--line-soft);margin-bottom:14px}
+.board table{font-size:14px}
+.board th{position:sticky;top:0;z-index:1;background:#EEF1F7;padding:8px 10px}
+.board td{padding:6px 10px}
+.board input{margin:0;padding:0;vertical-align:-2px}
+.board td:first-child:has(input),.board th:first-child:empty{width:30px;padding-right:0}
+.board .bd-who td{background:var(--chip);border-bottom:0}
+.board .bd-n,.board .bd-from{color:var(--muted);font-size:12.5px;white-space:nowrap}
+.dialog .bd-total{margin:0 0 16px;color:var(--ink)}
+.bd-title{font-weight:650;font-size:15px;margin:14px 0 8px;color:var(--ink)}
+.dialog .bd-files{margin:0 0 12px;font-size:13.5px;overflow-wrap:anywhere}
+.dialog .bd-mode{display:flex;flex-direction:column;gap:8px;margin:0 0 6px}
+.dialog .bd-mode label.tick,.parts label.tick{display:flex;align-items:flex-start;margin:0;font-size:14.5px}
+.dialog .bd-mode label.tick input,.parts label.tick input{flex:0 0 auto;margin-top:3px}
+.dialog .bd-mode small{display:block;color:var(--muted);font-size:12.5px;line-height:1.35;margin-top:1px}
+.parts{display:grid;grid-template-columns:1fr;gap:9px;margin:2px 0 4px;width:100%}
+.dialog .parts{margin:0 0 16px}
+.parts label.tick.off{color:var(--faint)}
+.parts small{color:var(--muted);font-size:12.5px}
+.parts select{margin-left:8px;height:34px;padding:0 8px;border-radius:10px;font-size:14px}
+@media (max-width:760px){
+  .findbox{left:10px;right:10px;top:60px;max-width:none}
+  .recnote{top:62px;left:12px}
+  .findbox:not([hidden])~.recnote{display:none}
+  .taskbar{left:8px;right:8px;bottom:8px}
+  .tkrow{padding-left:12px}
+  .board td,.board th{padding-left:8px;padding-right:8px}
+}
+/* список заданий раскрыт: страница листа растягивается, таблица не сжимается в щель */
+.page.sheet.on:has(.tkbox[open]){height:auto}
+.page.sheet.on:has(.tkbox[open]) .sh-grid{flex:0 0 auto;height:max(46vh,300px)}

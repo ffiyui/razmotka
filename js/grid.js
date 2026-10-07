@@ -210,7 +210,7 @@ class Grid {
     let html = '';
     for (let r = first; r <= last; r++) {
       const row = this.view[r], fmt = row && row.f;
-      const cls = !row ? 'virt' : row.done ? 'done' : work && !this.isBlank(row) ? 'draft' : '';
+      const cls = !row ? 'virt' : row.done ? 'done' : work && !this.isBlank(row) ? (row.from ? 'draft got' : 'draft') : '';
       html += `<div class="gx-r ${cls}" style="top:${r * GX.ROW}px;width:${this.width}px"><div class="gx-n">${r + 1}</div>`;
       for (let c = 0; c < this.cols.length; c++) {
         const col = this.cols[c], t = this.text(row, c);

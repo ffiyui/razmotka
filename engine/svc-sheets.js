@@ -28,7 +28,7 @@ globalThis.RZ = globalThis.RZ || {};
 
   function draft_counts(repo) {
     const out = {};
-    for (const name of ['razm', 'podm']) {
+    for (const name of sh.WORK) {
       const s = sh.SHEETS[name];
       out[name] = repo.sheet_rows(name).filter(([, , v, batch]) => batch === null && !sh.is_blank(s, v)).length;
     }
@@ -38,7 +38,7 @@ globalThis.RZ = globalThis.RZ || {};
   /* Сколько каналов в строках-черновиках: они ждут кнопки и на поле пока не учтены */
   function draft_channels(repo) {
     const out = {};
-    for (const name of ['razm', 'podm']) {
+    for (const name of sh.WORK) {
       const s = sh.SHEETS[name];
       out[name] = repo.sheet_rows(name).reduce((n, [, , v, batch]) =>
         n + (batch === null && !sh.is_blank(s, v) && v[3] !== null && v[4] !== null ? Math.abs(v[4] - v[3]) + 1 : 0), 0);
@@ -60,7 +60,10 @@ globalThis.RZ = globalThis.RZ || {};
       const rows = repo.sheet_rows(name);
       const action = sheet.kind === 'work' ? repo.last_action(name) : null;
       const formats = repo.sheet_formats(name);
-      const out = {rows: rows.map(([i, pos, v, batch]) => [i, pos, batch === null ? 0 : 1, v, ...(i in formats ? [formats[i]] : [])])};
+      const origins = sheet.kind === 'work' ? repo.origins(name) : new Map();
+      // строка: [id, место, проведена ли, значения, оформление, откуда принята]; два последних - только если есть
+      const out = {rows: rows.map(([i, pos, v, batch]) => [i, pos, batch === null ? 0 : 1, v,
+        ...(origins.has(i) && batch === null ? [formats[i] || null, origins.get(i)] : i in formats ? [formats[i]] : [])])};
       if (action) out.action = action_of(action);
       return out;
     });
@@ -130,7 +133,7 @@ globalThis.RZ = globalThis.RZ || {};
       if (sheet.locked_rows) throw new ValidationError('Строки этого листа удалять нельзя.');
       const done = repo.done_ids(name, ids);
       repo.delete_rows(name, ids);
-      if (done.length) { repo.delete_events(done); repo.rebuild_state(cfg.rules.same_day); }
+      if (done.length) { repo.delete_events(done); repo.delete_staked(done); repo.rebuild_state(cfg.rules.same_day); }
       return done;
     });
     if (name === 'sps') db.coords = null;
@@ -138,33 +141,35 @@ globalThis.RZ = globalThis.RZ || {};
   }
 
   // ---------------------------------------------------------------- проведение
-  const lookup_of = repo => sh.worker_lookup(repo.sheet_rows('workers').map(([, , v]) => [v[0], v[1]]));
+  const lookup_of = (repo, people = 'workers') => sh.worker_lookup(repo.sheet_rows(people).map(([, , v]) => [v[0], v[1]]));
   const pad = n => String(n).padStart(2, '0');
   const now_iso = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
 
   /* Размотать / подмотать: все строки-черновики листа проверяются и проводятся разом. Либо всё, либо ничего */
-  function apply(db, cfg, name, force = false) {
+  /* ids - провести только эти строки; остальные черновики (например, невыполненные задания) остаются ждать */
+  function apply(db, cfg, name, force = false, ids = null) {
     const sheet = sheet_of(name);
     if (sheet.kind !== 'work') throw new ValidationError('На этом листе нет проведения.');
-    const rules = cfg.rules;
+    const rules = cfg.rules, only = ids ? new Set(ids.map(i => parseInt(i, 10))) : null, stake = name === 'razb';
     return db.write(repo => {
       const rows = repo.sheet_rows(name);
       const drafts = [];
-      rows.forEach(([rid, , v, batch], n) => { if (batch === null) drafts.push([n + 1, rid, v]); });
-      const intervals = RZ.validation.work_intervals(drafts, lookup_of(repo), null, rules, sheet.wtype);
-      if (!intervals.length) throw new ValidationError('Нечего проводить: заполните строки таблицы.');
-      const has_sps = repo.sps_count() > 0;
-      const [blocking, warnings] = RZ.validation.review(
-        intervals.map(x => x[1]), RZ.today(),
-        has_sps ? (l, a, b) => repo.sps_known(l, a, b) : () => null, l => repo.field_pickets(l), rules);
+      rows.forEach(([rid, , v, batch], n) => { if (batch === null && (!only || only.has(rid))) drafts.push([n + 1, rid, v]); });
+      const intervals = RZ.validation.work_intervals(drafts, lookup_of(repo, sheet.lookup), null, rules, sheet.wtype, sheet);
+      if (!intervals.length) throw new ValidationError('Нечего проводить: ' + (only ? 'отмеченные строки пусты или уже проведены.' : 'заполните строки таблицы.'));
+      const has_sps = repo.sps_count() > 0, known = has_sps ? (l, a, b) => repo.sps_known(l, a, b) : () => null;
+      const [blocking, warnings] = stake
+        ? RZ.validation.review_stake(intervals.map(x => x[1]), RZ.today(), known, (l, a, b) => repo.staked_known(l, a, b), rules)
+        : RZ.validation.review(intervals.map(x => x[1]), RZ.today(), known, l => repo.field_pickets(l), rules);
       if (blocking.length) throw new ValidationError('Не проведено: ' + blocking.join('; ') + '.');
       if (warnings.length && !force) return {warnings};
 
-      repo.delete_rows(name, drafts.filter(([, , v]) => sh.is_blank(sheet, v)).map(([, rid]) => rid));
+      if (!only) repo.delete_rows(name, drafts.filter(([, , v]) => sh.is_blank(sheet, v)).map(([, rid]) => rid), false);
       const batch = repo.new_batch(now_iso(), name, 'apply');
       let total = 0;
       intervals.forEach(([rid, iv], k) => {
-        repo.insert_events(rid, iv.line, iv.p1, iv.p2, iv.date, iv.type, iv.wid, iv.worker, batch * 1000000 + k);
+        if (stake) repo.insert_staked(rid, iv.line, iv.p1, iv.p2, iv.date, iv.wid, iv.worker);
+        else repo.insert_events(rid, iv.line, iv.p1, iv.p2, iv.date, iv.type, iv.wid, iv.worker, batch * 1000000 + k);
         total += iv.count;
       });
       repo.set_done(intervals.map(x => x[0]), batch);
@@ -176,6 +181,7 @@ globalThis.RZ = globalThis.RZ || {};
 
   function revert(repo, cfg, ids) {
     repo.delete_events(ids);
+    repo.delete_staked(ids);
     repo.set_done(ids, null);
     repo.rebuild_state(cfg.rules.same_day);
   }
@@ -236,5 +242,5 @@ globalThis.RZ = globalThis.RZ || {};
     return {ok: true};
   }
 
-  RZ.svc_sheets = {meta, party, draft_counts, draft_channels, load, save_rows, delete_rows, apply, undo, unapply, cleanup, clear, recalc};
+  RZ.svc_sheets = {clean, lookup_of, now_iso, meta, party, draft_counts, draft_channels, load, save_rows, delete_rows, apply, undo, unapply, cleanup, clear, recalc};
 })(globalThis.RZ);

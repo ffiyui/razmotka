@@ -57,15 +57,28 @@ globalThis.RZ = globalThis.RZ || {};
     col('wid', 'ID старшего', 'calc', 118, {calc: 'worker_id'}),
   ];
 
+  /* Разбивка: топографы выносят пикеты на местность. Первые шесть столбцов те же, что у размотки */
+  const RAZB_COLS = () => [
+    col('date', 'Дата', 'date', 104, DATE_ERR),
+    col('worker', 'ФИО топографа', 'text', 184, {suggest: 'topo'}),
+    col('line', 'Линия', 'int', 84, LINE_ERR),
+    col('p1', 'Начальный ПП', 'int', 132, PICKET_ERR('Начальный ПП')),
+    col('p2', 'Конечный ПП', 'int', 126, PICKET_ERR('Конечный ПП')),
+    col('count', 'Кол-во пикетов', 'calc', 138, {calc: 'channels'}),
+    col('note', 'Примечание', 'text', 280),
+    col('wid', 'ID топографа', 'calc', 118, {calc: 'worker_id'}),
+  ];
+
   const sheet = (id, title, cols, kind = 'plain', o = {}) => ({
     id, title, cols, kind, wtype: o.wtype ?? null, button: o.button || '', undo: o.undo || '',
     blank: o.blank ?? 60, heading: o.heading ?? true, locked_col: o.locked_col ?? -1,
     locked_rows: o.locked_rows ?? 0, hint: o.hint || '',
+    lookup: o.lookup || 'workers', prefix: o.prefix || 'Журнал ГФО', unit: o.unit || 'канал',
   });
   /* Описание листа для интерфейса (то же, что Sheet.meta() в Python) */
   const meta = s => {
     const d = {};
-    for (const k of ['id', 'title', 'kind', 'wtype', 'button', 'undo', 'blank', 'heading', 'locked_col', 'locked_rows', 'hint']) d[k] = s[k];
+    for (const k of ['id', 'title', 'kind', 'wtype', 'button', 'undo', 'blank', 'heading', 'locked_col', 'locked_rows', 'hint', 'lookup', 'prefix', 'unit']) d[k] = s[k];
     d.cols = s.cols.map(c => ({...c}));
     return d;
   };
@@ -101,6 +114,12 @@ globalThis.RZ = globalThis.RZ || {};
       col('name', 'ФИО старшего', 'text', 260),
       col('same', 'ID старшего (дубль)', 'calc', 190, {calc: 'same_id'}),
     ], 'workers', {heading: false, blank: 20}),
+    razb: sheet('razb', 'Разбивка', RAZB_COLS(), 'work', {wtype: 2, button: 'Разбить', undo: 'Отменить разбивку', lookup: 'topo', prefix: 'Журнал ТГО', unit: 'пикет'}),
+    topo: sheet('topo', 'ID топографов', [
+      col('id', 'ID топографа', 'int', 120, {lo: 1, hi: 999999}),
+      col('name', 'ФИО топографа', 'text', 260),
+      col('same', 'ID топографа (дубль)', 'calc', 190, {calc: 'same_id'}),
+    ], 'workers', {heading: false, blank: 20}),
     /* Координаты пикетов. Из этого листа движок берёт систему координат для карты */
     sps: sheet('sps', 'SPS', [
       col('line', 'Профиль', 'int', 110, {lo: 1, hi: 99999, err_title: 'Профиль', err: 'Введите номер профиля: целое число'}),
@@ -113,7 +132,9 @@ globalThis.RZ = globalThis.RZ || {};
   };
   for (const s of Object.values(SHEETS)) s.meta = () => meta(s);
   const JOURNAL = ['razm', 'podm', 'oo', 'snake', 'info', 'workers'];     // листы книги «Журнал ГФО»
-  const ORDER = [...JOURNAL, 'sps'];
+  const WORK = ['razm', 'podm', 'razb'];                                  // листы с проведением: строка ждёт кнопки
+  const ROWS = ['razm', 'podm', 'razb', 'oo', 'snake', 'info', 'workers', 'topo'];   // все листы, кроме SPS
+  const ORDER = [...JOURNAL, 'razb', 'topo', 'sps'];
 
   /* Проверки значений отдельных ячеек листа «Общая информация» (как в книге) */
   const INFO_RULES = {4: [1, 99, 'Номер партии?', 'Введите корректный номер партии']};
@@ -269,7 +290,7 @@ globalThis.RZ = globalThis.RZ || {};
   }
 
   RZ.sh = {
-    TITLE_PREFIX, INFO_PARTY_ROW, MISSING, NO_VALUE, SHEETS, JOURNAL, ORDER, INFO_RULES, INFO_DEFAULT,
+    TITLE_PREFIX, INFO_PARTY_ROW, MISSING, NO_VALUE, SHEETS, JOURNAL, ORDER, WORK, ROWS, INFO_RULES, INFO_DEFAULT,
     parse_date, parse_int, parse_num, normalize, channels, worker_lookup, worker_id, computed, sheet_index,
     blank_values, is_blank, display, round4, round_half_even,
   };

@@ -24,7 +24,7 @@ if (dump.sheets.sps.length) db.write(r => r.replace_sps(dump.sheets.sps.map(x =>
 db.coords = null;
 
 const real = rj('real.json');
-same(db.read(r => r.totals()), real.totals, 'totals после импорта');
+same((({staked, ...t}) => t)(db.read(r => r.totals())), real.totals, 'totals после импорта');
 same(db.read(r => r.field_rows()), real.field_rows, 'field_rows после импорта');
 for (const rule of ['razm_last', 'podm_last', 'entry_order']) {
   same(db.read(r => r.last_events(rule)).map(x => [x[0], x[1], x[3], x[4]]), real.last_events[rule].map(x => [x[0], x[1], x[3], x[4]]), `last_events ${rule}`);

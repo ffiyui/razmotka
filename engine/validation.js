@@ -7,8 +7,8 @@ globalThis.RZ = globalThis.RZ || {};
   /* rows: [[номер строки на экране, id строки, значения]]. Пустые строки пропускаются.
      Любое нарушение - CellError с номером строки и столбца: строка не проводится вовсе.
      Возвращает [[id строки, Interval]] */
-  function work_intervals(rows, lookup, workers_names, rules, wtype) {
-    const sheet = sh.SHEETS.razm;
+  function work_intervals(rows, lookup, workers_names, rules, wtype, sheet = sh.SHEETS.razm) {
+    const who = sheet.cols[sh.sheet_index(sheet, 'worker')].title, people = sh.SHEETS[sheet.lookup].title;
     const ix = {};
     for (const k of ['date', 'worker', 'line', 'p1', 'p2']) ix[k] = sh.sheet_index(sheet, k);
     const out = [];
@@ -20,10 +20,10 @@ globalThis.RZ = globalThis.RZ || {};
         return v[ix[key]];
       };
       const date = need('date', 'Дата');
-      const name = need('worker', 'ФИО старшего');
+      const name = need('worker', who);
       const line = need('line', 'Линия'), p1 = need('p1', 'Начальный ПП'), p2 = need('p2', 'Конечный ПП');
       const wid = sh.worker_id(name, lookup);
-      if (wid === sh.MISSING) throw new CellError(`${where}: «${name}» нет на листе «ID старших».`, ix.worker, row_id);
+      if (wid === sh.MISSING) throw new CellError(`${where}: «${name}» нет на листе «${people}».`, ix.worker, row_id);
       if (!(rules.line_min <= line && line <= rules.line_max))
         throw new CellError(`${where}: линия ${line} вне допустимых пределов ${rules.line_min}–${rules.line_max}.`, ix.line, row_id);
       for (const [key, val] of [['p1', p1], ['p2', p2]]) {
@@ -63,5 +63,23 @@ globalThis.RZ = globalThis.RZ || {};
     return [blocking, warnings];
   }
 
-  RZ.validation = {work_intervals, review};
+  /* Спорные места разбивки: [blocking, warnings]. staked_known(line, p1, p2) -> сколько пикетов уже разбито */
+  function review_stake(intervals, today, sps_known, staked_known, rules) {
+    let future = 0, unknown = 0, repeat = 0;
+    const seen = new Set();
+    for (const iv of intervals) {
+      if (iv.date > today) future++;
+      const known = sps_known(iv.line, iv.p1, iv.p2);
+      if (known !== null && known !== undefined) unknown += iv.count - known;
+      repeat += staked_known(iv.line, iv.p1, iv.p2);
+      for (let p = iv.p1; p <= iv.p2; p++) { const k = iv.line * 1e6 + p; if (seen.has(k)) repeat++; seen.add(k); }
+    }
+    const blocking = [], warnings = [];
+    if (future) (rules.block_future_dates ? blocking : warnings).push(`строк с датой позже сегодняшней: ${future}`);
+    if (unknown) (rules.block_unknown_pickets ? blocking : warnings).push(`пикетов, которых нет в SPS: ${unknown}`);
+    if (repeat) warnings.push(`пикетов, которые уже разбиты: ${repeat}`);
+    return [blocking, warnings];
+  }
+
+  RZ.validation = {work_intervals, review, review_stake};
 })(globalThis.RZ);

@@ -8,13 +8,13 @@
 const NARROW_Q = '(max-width:820px), (pointer:coarse) and (max-height:500px)';     // тот же запрос, что в css/app.css
 const isNarrow = () => window.matchMedia(NARROW_Q).matches;
 const isTouch = () => window.matchMedia('(pointer:coarse)').matches;
-const NAV_PAGES = {razm: 'Размотка', podm: 'Подмотка', oo: 'Оставленное оборудование', snake: 'Змейки и вылеты',
+const NAV_PAGES = {razm: 'Размотка', podm: 'Подмотка', razb: 'Разбивка', topo: 'ID топографов', tracks: 'Треки', oo: 'Оставленное оборудование', snake: 'Змейки и вылеты',
   info: 'Общая информация', workers: 'ID старших', field: 'Поле', stats: 'Учёт', check: 'Проверка', sps: 'SPS', data: 'Данные'};
-const NAV_BADGE = {razm: 'nav-razm', podm: 'nav-podm', check: 'navbad'};
+const NAV_BADGE = {razm: 'nav-razm', podm: 'nav-podm', razb: 'nav-razb', check: 'navbad'};
 const NAV_OLD_SUB = 'Журнал учёта работы ГФО';          // подпись прежних версий: заменяется новой
 const navDefault = () => ({brand: 'Контроль размотки', sp: 'СП10', sub: 'Журнал учёта оборудования и работ бригад ГФО', groups: [
-  {title: 'Журнал', items: ['razm', 'podm', 'oo', 'snake', 'info', 'workers']},
-  {title: 'Отчёты', items: ['field', 'stats', 'check', 'sps']},
+  {title: 'Журнал', items: ['razm', 'podm', 'razb', 'oo', 'snake', 'info', 'workers', 'topo']},
+  {title: 'Отчёты', items: ['field', 'tracks', 'stats', 'check', 'sps']},
   {title: 'Служебное', items: ['data']}]});
 let NAV = navDefault(), navDrag = null;
 
@@ -39,8 +39,11 @@ function navNormalize(saved) {
     }
     out.groups.push({title: navText(g.title, def.groups[k] ? def.groups[k].title : 'Раздел'), items});
   });
-  def.groups.forEach((g, k) => g.items.forEach(id => {              // новые страницы программы попадают в свой раздел
-    if (!seen.has(id)) (out.groups[k] || out.groups[out.groups.length - 1]).items.push(id);
+  def.groups.forEach((g, k) => g.items.forEach((id, n) => {         // новые страницы программы попадают в свой раздел,
+    if (seen.has(id)) return;                                        // по возможности сразу за своей соседкой («Разбивка» - за «Подмоткой»)
+    const items = (out.groups[k] || out.groups[out.groups.length - 1]).items, at = items.indexOf(g.items[n - 1]);
+    if (at >= 0) items.splice(at + 1, 0, id); else items.push(id);
+    seen.add(id);
   }));
   navTidy(out);
   return out;

@@ -7,7 +7,8 @@
     on: false, watch: null, follow: false, course: false, fix: null, xy: null, near: null, centered: false,
     proj: null, calib: null, recent: [], err: '',
   };
-  window.GEO = G;                                            // состояние доступно из проверок и из js/data.js
+  window.GEO = G;
+  window.geoStart = () => start();                                            // состояние доступно из проверок и из js/data.js
 
   const fmt = (n, d = 0) => Number(n).toFixed(d).replace('.', ',');
   const secure = window.isSecureContext !== false;
@@ -81,6 +82,7 @@
     if (!G.centered) { G.centered = true; centerOnMe(true); }
     else if (G.follow) centerOnMe(false);
     if (G.course) applyCourse();
+    if (window.workFix && G.xy && !F.schematic) workFix(G.xy, c.accuracy, p.timestamp);   // задание и запись трека (js/work.js)
     draw();
   }
   /* Для внешних проверок: подставляет положение вместе с курсом и скоростью (браузер их подделывать не умеет) */
@@ -201,6 +203,7 @@
   }
   function status() {
     const el = $('gStat'), f = G.fix, parts = [];
+    if (window.workStatus) workStatus();
     if (G.err) { el.textContent = G.err; el.className = 'gstat bad'; return; }
     el.className = 'gstat';
     if (F && F.schematic && G.on) { el.textContent = 'Карта нарисована схемой, без координат. Заполните лист SPS, чтобы видеть себя на карте.'; return; }

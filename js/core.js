@@ -7,7 +7,8 @@ const today=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4)
 async function api(path,opt){const r=await fetch(path,opt);const j=await r.json();return j}
 const post=(path,body)=>api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 let toastT;function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>e.style.display='none',4200)}
-function ask(title,bodyHtml,yes,infoOnly){return new Promise(res=>{$('dTitle').textContent=title;$('dBody').innerHTML=bodyHtml;$('dYes').textContent=yes;
+function ask(title,bodyHtml,yes,infoOnly,wide){return new Promise(res=>{$('dTitle').textContent=title;$('dBody').innerHTML=bodyHtml;$('dYes').textContent=yes;
+  $('dialog').classList.toggle('wide',!!wide);$('dYes').disabled=false;
   $('dNo').style.display=infoOnly?'none':'';$('veil').style.display='flex';$('dYes').focus();
   const done=v=>{$('veil').style.display='none';$('veil').onkeydown=null;res(v)};
   $('dYes').onclick=()=>done(true);$('dNo').onclick=()=>done(false);
@@ -20,11 +21,12 @@ function plural(n,a,b,c){n=Math.abs(n)%100;const k=n%10;return n>10&&n<20?c:k===
 /* Сводка и признаки «данные изменились» для экранов */
 let S=null, dirty={};
 function markDirty(sheetsToo){for(const k of ['field','stats','check'])dirty[k]=true;
-  if(sheetsToo)for(const k of ['razm','podm','oo','snake','info','workers','sps'])dirty[k]=true}
+  if(sheetsToo)for(const k of ['razm','podm','razb','oo','snake','info','workers','topo','sps'])dirty[k]=true}
 async function loadSummary(){S=await api('/api/summary');
   $('navbad').textContent=S.bad?nf(S.bad):'';
   $('nav-razm').textContent=S.drafts.razm?nf(S.drafts.razm):'';
   $('nav-podm').textContent=S.drafts.podm?nf(S.drafts.podm):'';
+  if($('nav-razb'))$('nav-razb').textContent=S.drafts.razb?nf(S.drafts.razb):'';
   $('foot').textContent=S.date_max?'Последняя запись '+dru(S.date_max):'Данных пока нет';
   if(typeof fillRules==='function')fillRules();
   for(const [a,b] of [['sFrom','sTo'],['mFrom','mTo'],['cFrom','cTo']]){if(!$(a).value)$(a).value=S.date_max||today();if(!$(b).value)$(b).value=S.date_max||today()}
@@ -63,7 +65,8 @@ function popover(anchor, html, cls) {
 /* ---------- цвет размотки и подмотки ---------- */
 /* Один цвет задаёт всю тему листа: кнопку, строки-черновики, рамку выделения, а также цифры и диаграмму на экране «Учёт».
    Тёмный и светлый тона и цвет текста на кнопке подбираются по яркости. Хранится на сервере (data/prefs.json). */
-const THEME_DEFAULT = {razm: '#F27A0A', podm: '#007AFF'}, THEME_VAR = {razm: 'razm', podm: 'blue'};
+const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const THEME_DEFAULT = {razm: '#F27A0A', podm: '#007AFF', razb: '#AF52DE'}, THEME_VAR = {razm: 'razm', podm: 'blue', razb: 'razb'};
 const THEME = {...THEME_DEFAULT};
 function themeTones(color) {
   const v = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16)), lin = x => { x /= 255; return x <= .03928 ? x / 12.92 : Math.pow((x + .055) / 1.055, 2.4); };

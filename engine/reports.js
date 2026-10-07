@@ -75,6 +75,54 @@ globalThis.RZ = globalThis.RZ || {};
       if (this.schematic) return [round_to(picket * this.picket_step, 1), round_to(line * this.line_step, 1)];
       return this.points.get(line * 1e6 + picket) || null;
     }
+    /* Пикеты линии с координатами по возрастанию номера: [[пикет, x, y]] */
+    line_points(line) {
+      if (!this._lines) {
+        this._lines = new Map();
+        for (const [l, p, x, y] of this.list) { let a = this._lines.get(l); if (!a) this._lines.set(l, a = []); a.push([p, x, y]); }
+        for (const a of this._lines.values()) a.sort((m, n) => m[0] - n[0]);
+      }
+      return this._lines.get(line) || [];
+    }
+    /* Общая зависимость координат от номеров: x = a0 + a1·линия + a2·пикет (и так же y), по наименьшим квадратам.
+       Нужна, когда о линии ничего не известно: место пикета оценивается по соседним линиям */
+    _fit() {
+      if (this._model !== undefined) return this._model;
+      const n = this.list.length, step = Math.max(1, Math.floor(n / 4000));
+      let k = 0, sl = 0, sp = 0, L0 = 0, P0 = 0;
+      for (let i = 0; i < n; i += step) { L0 += this.list[i][0]; P0 += this.list[i][1]; k++; }
+      if (k < 3) return (this._model = null);
+      L0 /= k; P0 /= k;
+      let sll = 0, slp = 0, spp = 0, sx = 0, sy = 0, slx = 0, spx = 0, sly = 0, spy = 0;
+      for (let i = 0; i < n; i += step) {
+        const [l, p, x, y] = this.list[i], a = l - L0, b = p - P0;
+        sll += a * a; slp += a * b; spp += b * b; sx += x; sy += y; slx += a * x; spx += b * x; sly += a * y; spy += b * y;
+      }
+      const det = sll * spp - slp * slp;
+      if (!(Math.abs(det) > 1e-6)) return (this._model = null);       // все известные пикеты на одной линии
+      const solve = (sl_, sp_, s0) => [s0 / k, (sl_ * spp - sp_ * slp) / det, (sp_ * sll - sl_ * slp) / det];
+      return (this._model = {L0, P0, x: solve(slx, spx, sx), y: solve(sly, spy, sy)});
+    }
+    /* Где пикет стоит или стоял бы: [x, y, точно ли]. Точно - координаты есть в листе SPS. Иначе место считается:
+       по двум ближайшим известным пикетам той же линии, а если линии в SPS нет - по общей зависимости от номеров.
+       Так на карте видно задание на разбивку, у которого координат ещё нет */
+    est(line, picket) {
+      const exact = this.xy(line, picket);
+      if (exact) return [exact[0], exact[1], true];
+      if (this.schematic) return null;
+      const a = this.line_points(line);
+      if (a.length >= 2) {
+        let i = 0;
+        while (i < a.length - 2 && a[i + 1][0] < picket) i++;
+        const p = a[i], q = a[i + 1], t = (picket - p[0]) / (q[0] - p[0]);
+        return [round_to(p[1] + (q[1] - p[1]) * t, 1), round_to(p[2] + (q[2] - p[2]) * t, 1), false];
+      }
+      const m = this._fit();
+      if (!m) return null;
+      if (a.length === 1) return [round_to(a[0][1] + m.x[2] * (picket - a[0][0]), 1), round_to(a[0][2] + m.y[2] * (picket - a[0][0]), 1), false];
+      const dl = line - m.L0, dp = picket - m.P0;
+      return [round_to(m.x[0] + m.x[1] * dl + m.x[2] * dp, 1), round_to(m.y[0] + m.y[1] * dl + m.y[2] * dp, 1), false];
+    }
   }
 
   function coords(db, repo) {
@@ -95,11 +143,13 @@ globalThis.RZ = globalThis.RZ || {};
       return o;
     });
     out.rules = cfg.rules;
+    out.crs = cfg.crs;
     return out;
   }
 
   function field_map(db) {
-    const {c, rows, oo} = db.read(repo => ({c: coords(db, repo), rows: repo.field_rows(), oo: repo.sheet_rows('oo').map(r => r[2])}));
+    const {c, rows, oo, staked_rows, tasks} = db.read(repo => ({c: coords(db, repo), rows: repo.field_rows(), oo: repo.sheet_rows('oo').map(r => r[2]),
+      staked_rows: repo.staked_points(), tasks: repo.sheet_rows('razb').filter(r => r[3] === null).map(r => r[2])}));
     const points = [], dates = new Map(), names = new Map();
     let no_xy = 0;
     for (const [line, picket, date, worker] of rows) {
@@ -115,7 +165,24 @@ globalThis.RZ = globalThis.RZ || {};
       const xy = c.xy(v[0], v[1]);
       if (xy) (v[2] === 1 ? left : lost).push(xy[0], xy[1], v[0], v[1]);
     }
+    const staked = [];                                // разбитые пикеты: слой «Разбито»
+    for (const [line, picket, date, worker] of staked_rows) {
+      const xy = c.est(line, picket);
+      if (!xy) continue;
+      if (!dates.has(date)) dates.set(date, dates.size);
+      if (!names.has(worker)) names.set(worker, names.size);
+      staked.push(xy[0], xy[1], line, picket, dates.get(date), names.get(worker));
+    }
+    const plan = [], seen = new Set();                // задания на разбивку: место считается, если координат ещё нет
+    for (const v of tasks) {
+      if (v[2] === null || v[3] === null || v[4] === null || Math.abs(v[4] - v[3]) > 20000) continue;
+      for (let p = Math.min(v[3], v[4]); p <= Math.max(v[3], v[4]); p++) {
+        const k = v[2] * 1e6 + p, xy = seen.has(k) ? null : c.est(v[2], p);
+        if (xy) { seen.add(k); plan.push(xy[0], xy[1], v[2], p); }
+      }
+    }
     return {
+      staked, plan,
       sps: c.schematic ? [] : c.background, schematic: c.schematic, field: points, dates: [...dates.keys()], names: [...names.keys()],
       segments: RZ.rules.segments(rows.map(r => [r[0], r[1], 0])).map(s => s.slice(0, 3)),
       no_xy, left, lost, line_angle: c.schematic ? 0 : c.line_angle,
@@ -144,6 +211,44 @@ globalThis.RZ = globalThis.RZ || {};
     return n ? {line: n[0], picket: n[1], dist: Math.round(n[2] * 10) / 10} : {};
   }
 
+  /* Поиск пикетов на карте. ranges: [{line, p1, p2}]. Один пикет в любой из ячеек - одна точка, оба пусты - вся линия */
+  function find(db, ranges) {
+    const VE = RZ.ValidationError, sh = RZ.sh, empty = v => v === null || v === undefined || String(v).trim() === '';
+    if (!Array.isArray(ranges) || !ranges.length) throw new VE('Укажите линию и пикеты для поиска.');
+    if (ranges.length > 200) throw new VE('Слишком много строк поиска за один раз: не больше 200.');
+    const c = db.read(repo => coords(db, repo)), points = [], rows = [], seen = new Set();
+    ranges.forEach((r, i) => {
+      r = r && typeof r === 'object' ? r : {};
+      const raw = [r.line, r.p1, r.p2], n = i + 1;
+      if (raw.every(empty)) return;
+      const [line, p1, p2] = raw.map(v => (empty(v) ? null : sh.parse_int(v)));
+      if (line === null || line < 1) throw new VE(`Строка поиска ${n}: укажите номер линии целым числом.`);
+      if ((p1 === null && !empty(raw[1])) || (p2 === null && !empty(raw[2]))) throw new VE(`Строка поиска ${n}: номер пикета должен быть целым числом.`);
+      let pickets, want;
+      if (p1 === null && p2 === null) {
+        if (c.schematic) throw new VE(`Строка поиска ${n}: укажите пикет. Всю линию можно найти, когда заполнен лист SPS.`);
+        pickets = c.line_points(line).map(p => p[0]); want = pickets.length;
+      } else {
+        let a = p1 !== null ? p1 : p2, b = p2 !== null ? p2 : p1;
+        [a, b] = [Math.min(a, b), Math.max(a, b)];
+        if (b - a > 100000 || a < 1) throw new VE(`Строка поиска ${n}: проверьте номера пикетов.`);
+        pickets = []; for (let p = a; p <= b; p++) pickets.push(p);
+        want = b - a + 1;
+      }
+      let found = 0;
+      for (const p of pickets) {
+        const xy = c.xy(line, p);
+        if (!xy) continue;
+        found++;
+        const k = line * 1e6 + p;
+        if (!seen.has(k)) { seen.add(k); points.push(xy[0], xy[1], line, p); }
+      }
+      rows.push({line, p1: p1 !== null ? p1 : p2, p2: p2 !== null ? p2 : p1, found, missing: want - found});
+    });
+    if (!rows.length) throw new VE('Укажите линию и пикеты для поиска.');
+    return {points, rows};
+  }
+
   const stats = (db, d1, d2) => db.read(repo => repo.stats(d1, d2));
 
   /* Противоречия истории и сверка итогов. Каналов на поле = размотано - подмотано - повторных размоток + подмоток без размотки */
@@ -167,5 +272,5 @@ globalThis.RZ = globalThis.RZ || {};
     return {items: result, razm: totals.razm, podm: totals.podm, field: totals.field, double_razm: razm, orphan_podm: rows.length - razm};
   }
 
-  RZ.reports = {Coords, coords, summary, field_map, period, stats, check, round_to, line_angle, picket_xy, nearest};
+  RZ.reports = {find, Coords, coords, summary, field_map, period, stats, check, round_to, line_angle, picket_xy, nearest};
 })(globalThis.RZ);

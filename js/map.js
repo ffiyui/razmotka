@@ -1,11 +1,13 @@
 /* Экран «Поле»: карта оборудования, слои с выбором формы и цвета точек, топографические подложки и список по линиям */
-let F = {sps: [], field: [], dates: [], names: [], segments: [], left: [], lost: [], schematic: false};
+let F = {sps: [], field: [], dates: [], names: [], segments: [], left: [], lost: [], staked: [], plan: [], schematic: false};
 let P = {razm: [], podm: []};                 // размотка и подмотка за выбранный период
 let V = {s: 1, ox: 0, oy: 0, deg: 0, c: 1, n: 0};   // вид: масштаб, сдвиг и наклон (градусы по часовой стрелке, его cos и sin)
 let B = null;                                 // границы данных
 let BSETS = [];                               // наборы точек, по которым считаются границы
 const U = {items: [], active: 0, cache: {}};  // подложки: список, номер выбранной, загруженные картинки по номерам
 const cv = $('map'), ctx = cv.getContext('2d');
+const DX = {layers: [], box: []};             // контуры DXF из файла проекта; работа с ними, поиск, задания и треки - в js/work.js
+const FIND = {pts: [], labels: []};           // найденные пикеты
 
 /* Вид слоёв карты: цвет, форма и размер точек. Меняется щелчком по образцу в легенде,
    хранится на сервере (data/prefs.json). k - множитель размера, min - наименьший размер в пикселях. */
@@ -13,6 +15,7 @@ const MAP_DEFAULT = {
   sps: {c: '#C3C9D4', shape: 'square', k: .8}, field: {c: '#1D1D1F', shape: 'square', k: 1},
   razm: {c: '#FF9500', shape: 'square', k: 1.15}, podm: {c: '#007AFF', shape: 'square', k: 1.15},
   left: {c: '#FF3B30', shape: 'circle', k: 1, min: 10}, lost: {c: '#8E1B16', shape: 'cross', k: 1, min: 10},
+  razb: {c: '#AF52DE', shape: 'square', k: 1.7}, plan: {c: '#AF52DE', shape: 'box', k: 1.9, min: 7},
 };
 const LAYER_TITLE = {sps: 'Пикеты SPS', field: 'Лежит на поле', razm: 'Размотано за период', podm: 'Подмотано за период', left: 'Оставленное оборудование', lost: 'Утерянное оборудование'};
 const cloneStyle = () => JSON.parse(JSON.stringify(MAP_DEFAULT));
@@ -123,12 +126,15 @@ async function loadField() {
   $('lgSps').style.display = F.schematic ? 'none' : '';
   $('lgLeft').style.display = F.left.length ? '' : 'none';
   $('lgLost').style.display = F.lost.length ? '' : 'none';
+  F.staked = F.staked || []; F.plan = F.plan || [];             // настольный сервер прежней версии их не присылает
+  $('lgPlan').style.display = F.plan.length ? '' : 'none';
+  if (typeof loadDxf === 'function') { await loadDxf(); await loadTracks(); }
   $('mapNote').textContent = F.schematic ? 'Схема по номерам линий и пикетов. Заполните лист SPS, чтобы карта строилась в координатах.' : '';
   $('uBtn').disabled = F.schematic;
   $('uBtn').title = F.schematic ? 'Подложка привязывается к координатам листа SPS: сначала заполните его' : '';
   $('uList').style.display = F.schematic ? 'none' : '';
 
-  BSETS = F.sps.length ? [[F.sps, 2]] : [[F.field, 6], [F.left, 4], [F.lost, 4]];
+  BSETS = F.sps.length ? [[F.sps, 2]] : [[F.field, 6], [F.left, 4], [F.lost, 4], [F.staked, 6], [F.plan, 4]];
   B = bounds(BSETS);
   if (!V.restored) { V.restored = true; setAngle(+PREFS.map_tilt || 0); }      // наклон прошлого сеанса
   $('mLevel').disabled = !B;
@@ -279,8 +285,11 @@ function draw() {
     ctx.globalAlpha = 1;
     ctx.setTransform(d, 0, 0, d, 0, 0);
   }
+  if (window.dxfDraw) dxfDraw();
   const z = Math.max(1.3, Math.min(7, V.s * 18));
   if ($('lSps').checked) layer(F.sps, 2, MS.sps, z);
+  if ($('lPlan').checked) layer(F.plan, 4, MS.plan, z);
+  if ($('lRazb').checked) layer(F.staked, 6, MS.razb, z);       // разбитый пикет крупнее оборудования: виден каймой вокруг него
   if ($('lField').checked) layer(F.field, 6, MS.field, z);
   if ($('lPodm').checked) layer(P.podm, 4, MS.podm, z);
   if ($('lRazm').checked) layer(P.razm, 4, MS.razm, z);
@@ -290,6 +299,7 @@ function draw() {
     ctx.fillStyle = '#63636A'; ctx.font = '15px -apple-system,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('Карта появится, когда на поле будет оборудование или заполнится лист SPS', cv.clientWidth / 2, cv.clientHeight / 2);
   }
+  if (window.workDraw) workDraw(z);                         // треки, задание и найденные пикеты (js/work.js)
   if (window.geoDraw && !F.schematic) geoDraw(ctx, d);      // моё местоположение (js/geo.js)
 }
 
@@ -386,6 +396,7 @@ function onTap(p) {
     lastTap = null; $('tip').style.display = 'none'; zoomAt(p.x, p.y, 2); return;
   }
   lastTap = {x: p.x, y: p.y, t: now};
+  if (window.workTap && workTap(p)) return;                 // задание на карте: касание предлагает начать работу
   showTip(p.x, p.y, 24);                                    // палец неточнее мыши: радиус поиска точки больше
 }
 function nearest(a, step, mx, my, best) {
@@ -402,19 +413,32 @@ function showTip(mx, my, radius) {
   if ($('lPodm').checked) nearest(P.podm, 4, mx, my, best);
   if ($('lLeft').checked) nearest(F.left, 4, mx, my, best);
   if ($('lLost').checked) nearest(F.lost, 4, mx, my, best);
+  if ($('lRazb').checked) nearest(F.staked, 6, mx, my, best);
+  if ($('lPlan').checked) nearest(F.plan, 4, mx, my, best);
+  nearest(FIND.pts, 4, mx, my, best);
   const t = $('tip');
-  if (best.i < 0) { t.style.display = 'none'; return; }
+  if (best.i < 0) {                             // пикета под пальцем нет: может быть, это контур DXF
+    const hint = window.dxfTip ? dxfTip(mx, my) : '';
+    if (!hint) { t.style.display = 'none'; return; }
+    t.textContent = hint; t.style.display = 'block';
+    t.style.left = Math.max(8, Math.min(mx + 14, r.width - t.offsetWidth - 8)) + 'px';
+    t.style.top = Math.max(my - t.offsetHeight - 14, 8) + 'px';
+    return;
+  }
   const a = best.a, i = best.i;
   let s = 'Линия ' + a[i + 2] + ', ПП ' + a[i + 3];
   if (a === F.field) s += ' — на поле с ' + dru(F.dates[a[i + 4]]) + ', ' + F.names[a[i + 5]];
   else if (a === F.left) s += ' — оставленное оборудование';
   else if (a === F.lost) s += ' — утерянное оборудование';
+  else if (a === F.staked) s += ' — разбит ' + dru(F.dates[a[i + 4]]) + ', ' + F.names[a[i + 5]];
+  else if (a === F.plan) s += ' — задание на разбивку';
+  else if (a === FIND.pts) s += ' — найден';
   else s += a === P.razm ? ' — размотано за период' : ' — подмотано за период';
   t.textContent = s; t.style.display = 'block';
   t.style.left = Math.max(8, Math.min(mx + 14, r.width - t.offsetWidth - 8)) + 'px';
   t.style.top = (radius > 10 && my - 34 - t.offsetHeight < 8 ? my + 22 : Math.max(my - 34, 8)) + 'px';
 }
-for (const id of ['lSps', 'lField', 'lLeft', 'lLost']) $(id).onchange = draw;
+for (const id of ['lSps', 'lField', 'lLeft', 'lLost', 'lRazb', 'lPlan', 'lTracks']) $(id).onchange = draw;
 for (const id of ['lRazm', 'lPodm']) $(id).onchange = loadPeriod;
 for (const id of ['mFrom', 'mTo']) $(id).onchange = () => { [...$('mPresets').children].forEach(x => x.classList.remove('on')); loadPeriod(); };
 $('mFit').onclick = fit;

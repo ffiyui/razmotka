@@ -1,7 +1,9 @@
 /* Экран «Учёт»: диаграмма и таблицы */
 async function loadStats(){const a=$('sFrom').value,b=$('sTo').value;if(!a||!b)return;const j=await api(`/api/stats?from=${a}&to=${b}`);
   const r=j.days.reduce((s,d)=>s+d[1],0),p=j.days.reduce((s,d)=>s+d[2],0);
-  $('sFig').innerHTML=`<div><b class="t-razm">${nf(r)}</b><span>размотано</span></div><div><b class="t-podm">${nf(p)}</b><span>подмотано</span></div><div><b>${nf(j.days.length)}</b><span>${plural(j.days.length,'рабочий день','рабочих дня','рабочих дней')}</span></div><div><b>${nf(S.field)}</b><span>на поле сейчас</span></div>`;
+  $('sFig').innerHTML=`<div><b class="t-razm">${nf(r)}</b><span>размотано</span></div><div><b class="t-podm">${nf(p)}</b><span>подмотано</span></div><div><b>${nf(j.days.length)}</b><span>${plural(j.days.length,'рабочий день','рабочих дня','рабочих дней')}</span></div><div><b>${nf(S.field)}</b><span>на поле сейчас</span></div>`+(S.staked?`<div><b class="t-razb">${nf(S.staked)}</b><span>разбито пикетов</span></div>`:'');
+  const st=j.staked||[];$('sStakeBox').hidden=!st.length;
+  $('sStake').innerHTML=st.length?'<table><tr><th>Топограф</th><th class="r">Разбито пикетов</th></tr>'+st.map(x=>`<tr><td>${esc(x[0])}</td><td class="r">${nf(x[1])}</td></tr>`).join('')+'</table>':'';
   chart(j.days,a,b);
   const tbl=(rows,h)=>rows.length?'<table><tr><th>'+h+'</th><th class="r">Размотка</th><th class="r">Подмотка</th></tr>'+rows.map(x=>`<tr><td>${esc(x[0])}</td><td class="r">${nf(x[1])}</td><td class="r">${nf(x[2])}</td></tr>`).join('')+'</table>':'<div class="empty">За этот период работ нет.</div>';
   $('sWorkers').innerHTML=tbl(j.workers,'Старший');$('sLines').innerHTML=tbl(j.lines,'Линия')}

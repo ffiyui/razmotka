@@ -63,11 +63,24 @@
     <div class="card map" id="mapBox">
       <canvas id="map"></canvas>
       <div class="maptools">
+        <button class="icon-btn dots" id="tRec" title="Записать трек своего движения" aria-label="Записать трек" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 14.5c2.5 0 2-4 4.5-4s2 2.5 4 2.5 2.5-3.5 2.5-6"/><circle cx="3.5" cy="14.5" r="1.3" fill="currentColor"/><circle cx="14.5" cy="5.2" r="1.8"/></svg></button>
+        <button class="icon-btn dots" id="mFind" title="Найти пикеты на карте" aria-label="Найти пикеты на карте" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="7.8" cy="7.8" r="4.8"/><path d="M11.6 11.6 15.4 15.4"/></svg></button>
         <button class="icon-btn dots" id="mFull" title="На весь экран" aria-label="На весь экран" aria-pressed="false"><svg class="i-full" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="i-out" d="M3 7V3h4M15 7V3h-4M3 11v4h4M15 11v4h-4"/><path class="i-in" d="M7 3v4H3M11 3v4h4M7 15v-4H3M11 15v-4h4"/></svg></button>
         <button class="icon-btn dots" id="gBtn" title="Моё местоположение" aria-label="Моё местоположение" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="3.2"/><path d="M9 1.5v3M9 13.5v3M1.5 9h3M13.5 9h3"/></svg></button>
         <button class="icon-btn dots" id="sideShow" title="Показать панель инструментов" aria-label="Показать панель инструментов">⋯</button>
       </div>
       <button class="north" id="mNorth" title="Стрелка показывает на север. Щелчок — вернуть север вверх" aria-label="Вернуть север вверх" hidden><svg width="22" height="22" viewBox="-11 -11 22 22" aria-hidden="true"><path d="M0-9 4.6 6 0 3.2-4.6 6Z" fill="currentColor"/></svg><span>С</span></button>
+      <form class="findbox" id="findBox" hidden autocomplete="off">
+        <div id="findRows"></div>
+        <div class="find-foot"><span id="findNote"></span><button type="button" class="find-link" id="findClear" hidden>Сбросить</button></div>
+      </form>
+      <div class="taskbar" id="taskBar" hidden>
+        <div class="tk-head"><b id="tkTitle"></b><button type="button" class="icon-btn" id="tkClose" title="Убрать задание с карты" aria-label="Убрать задание с карты">✕</button></div>
+        <div class="tk-sub" id="tkSub"></div>
+        <div class="tk-prog" id="tkProg" hidden><i id="tkFill"></i></div>
+        <div class="tk-acts"><button type="button" class="btn small main" id="tkGo"></button><button type="button" class="btn small" id="tkPause" hidden>Пауза</button><button type="button" class="btn small" id="tkEnd" hidden></button></div>
+      </div>
+      <div class="recnote" id="recNote" hidden></div>
       <div class="mapnote" id="mapNote"></div>
       <div class="tip" id="tip"></div>
     </div>
@@ -79,10 +92,15 @@
         <label><input type="checkbox" id="lField" checked><button type="button" class="sw" data-layer="field" title="Форма, размер и цвет точек"></button>Лежит на поле</label>
         <label><input type="checkbox" id="lRazm"><button type="button" class="sw" data-layer="razm" title="Форма, размер и цвет точек"></button>Размотано за период</label>
         <label><input type="checkbox" id="lPodm"><button type="button" class="sw" data-layer="podm" title="Форма, размер и цвет точек"></button>Подмотано за период</label>
+        <label><input type="checkbox" id="lRazb" checked><button type="button" class="sw" data-layer="razb" title="Форма, размер и цвет точек"></button>Разбито</label>
+        <label id="lgPlan" style="display:none"><input type="checkbox" id="lPlan" checked><button type="button" class="sw" data-layer="plan" title="Форма, размер и цвет точек"></button>Задания на разбивку</label>
+        <label><input type="checkbox" id="lTracks" checked>Треки, отмеченные во вкладке «Треки»</label>
         <label id="lgLeft" style="display:none"><input type="checkbox" id="lLeft" checked><button type="button" class="sw" data-layer="left" title="Форма, размер и цвет точек"></button>Оставленное оборудование</label>
         <label id="lgLost" style="display:none"><input type="checkbox" id="lLost" checked><button type="button" class="sw" data-layer="lost" title="Форма, размер и цвет точек"></button>Утерянное оборудование</label>
       </div>
       <button class="btn small" id="swReset" hidden>Вид слоёв по умолчанию</button>
+      <div id="dxBox" hidden><div class="side-title">Контуры DXF <span class="side-n" id="dxCount"></span></div>
+      <div class="ulist dxlist" id="dxList"></div></div>
       <div class="side-title">Вид</div>
       <label class="range" for="mTilt">Наклон<output id="mTiltOut" for="mTilt">0°</output></label>
       <input type="range" id="mTilt" class="wide-range" min="-180" max="180" step="1" value="0" aria-label="Наклон карты, градусы">
@@ -121,7 +139,15 @@
 <section class="page sheet" id="p-snake"></section>
 <section class="page sheet" id="p-info"></section>
 <section class="page sheet" id="p-workers"></section>
+<section class="page sheet" id="p-razb"></section>
+<section class="page sheet" id="p-topo"></section>
 <section class="page sheet" id="p-sps"></section>
+
+<section class="page" id="p-tracks">
+  <h1>Треки</h1>
+  <p class="lead">Записанный путь. Запись включается кнопкой с линией на карте («Поле»). Отмеченные галочкой треки видны на карте; их можно положить в файл проекта.</p>
+  <div class="card" id="trList"></div>
+</section>
 
 <section class="page" id="p-stats">
   <h1>Учёт</h1>
@@ -131,6 +157,7 @@
     <button class="btn" id="sAll">Весь период</button><button class="btn" id="s30">Последние 30 дней</button>
   </div>
   <div class="figures" id="sFig"></div>
+  <div id="sStakeBox" hidden><h2>Разбивка по топографам</h2><div class="card scroll" id="sStake"></div></div>
   <div class="card pad"><div style="margin-bottom:8px;font-size:13.5px;color:var(--muted)"><span class="dot c-razm"></span>Размотка <span class="dot c-podm" style="margin-left:14px"></span>Подмотка, каналов в день</div><div id="chart"></div></div>
   <div class="grid2">
     <div><h2>По старшим</h2><div class="card scroll" id="sWorkers"></div></div>
@@ -154,7 +181,27 @@
 
 <section class="page" id="p-data">
   <h1>Данные</h1>
-  <p class="lead">Загрузка из Excel, выгрузки и правила учёта.</p>
+  <p class="lead">Файл проекта для обмена с компьютером, загрузка из Excel, выгрузки и правила учёта.</p>
+  <h2>Файл проекта</h2>
+  <div class="dgrid">
+    <div class="card dcard"><h3>Сохранить файл проекта</h3>
+      <p>Файл .rzm для компьютера начальника отряда или другого телефона. Журнал с заданиями и выполненной работой кладётся всегда, остальное — по галочкам.</p>
+      <div class="dctl"><div class="parts" id="prjParts">
+          <label class="tick"><input type="checkbox" checked disabled><span>журнал: размотка, подмотка, разбивка, задания</span></label>
+          <label class="tick"><input type="checkbox" data-part="tracks" checked><span>треки</span></label>
+          <label class="tick"><input type="checkbox" data-part="sps"><span>лист SPS (координаты пикетов)</span></label>
+          <label class="tick"><input type="checkbox" data-part="dxf"><span>контуры DXF</span></label>
+          <label class="tick"><input type="checkbox" data-part="settings"><span>правила учёта и система координат</span></label>
+          <label class="tick"><input type="checkbox" id="prjOnly"><span>только задания:</span> <select id="prjTasks" aria-label="Вид работ"><option value="all">все виды работ</option><option value="razm">размотка</option><option value="podm">подмотка</option><option value="razb">разбивка</option></select></label>
+        </div>
+        <div style="width:100%"><label for="prjName">Имя файла</label><input id="prjName" class="wide" maxlength="100" style="width:100%" placeholder="Например: Дульцев К.А."></div>
+        <div class="dnote" id="prjWho"></div></div>
+      <div class="dact"><button class="btn main" id="prjSave">Сохранить файл проекта</button></div></div>
+    <div class="card dcard"><h3>Загрузить файл проекта</h3>
+      <p>Файл .rzm от начальника отряда или с другого устройства. Сначала программа покажет, что в файле нового и кто это выполнил, и спросит, что загрузить. До вашего согласия проект не меняется.</p>
+      <div class="dctl"><input type="file" id="prjFile" accept=".rzm,.zip,application/octet-stream,application/zip" multiple></div>
+      <div class="dact"><button class="btn main" id="prjLoad">Проверить файл</button><span class="dnote" id="prjNote"></span></div></div>
+  </div>
   <h2>Загрузка</h2>
   <div class="dgrid">
     <div class="card dcard"><h3>Журнал из Excel</h3>
@@ -210,7 +257,7 @@
 </section>
 
 </main></div>
-<datalist id="gx-workers"></datalist>
+<datalist id="gx-workers"></datalist><datalist id="gx-topo"></datalist>
 <div class="toast" id="toast"></div>
 <div class="gx-acc" id="gxAcc" role="toolbar" aria-label="Правка ячейки">
   <button type="button" data-k="prev" aria-label="Предыдущая ячейка">‹</button><button type="button" data-k="next" aria-label="Следующая ячейка">›</button>
@@ -218,7 +265,7 @@
   <span class="gx-acc-t" id="gxAccT"></span><button type="button" class="gx-done" data-k="done">Готово</button>
 </div>
 <div class="upd" id="updBar" role="status"><span>Доступна новая версия</span><button type="button" class="btn small" id="updGo">Обновить</button><button type="button" class="upd-x" id="updX" aria-label="Позже">✕</button></div>
-<div class="veil" id="veil"><div class="dialog"><h3 id="dTitle"></h3><div id="dBody"></div><div class="row"><button class="btn" id="dNo">Отмена</button><button class="btn main" id="dYes"></button></div></div></div>
+<div class="veil" id="veil"><div class="dialog" id="dialog"><h3 id="dTitle"></h3><div id="dBody"></div><div class="row"><button class="btn" id="dNo">Отмена</button><button class="btn main" id="dYes"></button></div></div></div>
 
 <script src="engine/gk.js"></script>
 <script src="engine/sheets-core.js"></script>
@@ -228,12 +275,14 @@
 <script src="engine/store.js"></script>
 <script src="engine/svc-sheets.js"></script>
 <script src="engine/reports.js"></script>
+<script src="engine/tasks.js"></script>
 <script src="engine/zip.js"></script>
 <script src="engine/xlsx.js"></script>
 <script src="engine/importer.js"></script>
 <script src="engine/compare.js"></script>
 <script src="engine/exporter.js"></script>
 <script src="engine/underlay.js"></script>
+<script src="engine/project.js"></script>
 <script src="engine/api.js"></script>
 <script src="engine/boot.js"></script>
 <script src="js/core.js"></script>
@@ -242,6 +291,7 @@
 <script src="js/sheet.js"></script>
 <script src="js/map.js"></script>
 <script src="js/geo.js"></script>
+<script src="js/work.js"></script>
 <script src="js/tiles.js"></script>
 <script src="js/stats.js"></script>
 <script src="js/check.js"></script>

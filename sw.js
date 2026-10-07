@@ -2,7 +2,7 @@
    Версию и список файлов между маркерами пишет tools/build_sw.py (запускать перед выдачей), руками их не править.
    Новая версия ставится, но не включается сама: страница показывает «Доступна новая версия — Обновить»
    и по кнопке присылает сюда сообщение SKIP_WAITING. Старые кэши удаляются при включении новой версии. */
-const VERSION = /*VERSION*/'863809fa22c9'/*END*/;
+const VERSION = /*VERSION*/'ebf860e0baaa'/*END*/;
 const FILES = /*FILES*/[
   "./",
   "index.html",
@@ -19,12 +19,14 @@ const FILES = /*FILES*/[
   "engine/store.js",
   "engine/svc-sheets.js",
   "engine/reports.js",
+  "engine/tasks.js",
   "engine/zip.js",
   "engine/xlsx.js",
   "engine/importer.js",
   "engine/compare.js",
   "engine/exporter.js",
   "engine/underlay.js",
+  "engine/project.js",
   "engine/api.js",
   "engine/boot.js",
   "js/core.js",
@@ -33,6 +35,7 @@ const FILES = /*FILES*/[
   "js/sheet.js",
   "js/map.js",
   "js/geo.js",
+  "js/work.js",
   "js/tiles.js",
   "js/stats.js",
   "js/check.js",

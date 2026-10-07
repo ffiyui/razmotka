@@ -56,7 +56,11 @@ globalThis.RZ = globalThis.RZ || {};
   RZ.kv_idb = kv_idb;
 
   // ---------------------------------------------------------------- репозиторий
-  const ROW_SHEETS = ['razm', 'podm', 'oo', 'snake', 'info', 'workers'];
+  const ROW_SHEETS = ['razm', 'podm', 'razb', 'oo', 'snake', 'info', 'workers', 'topo'];
+  /* Постоянный номер строки: по нему проекты объединяются (тот же смысл, что uid в настольной версии) */
+  const new_uid = () => { let s = ''; for (let i = 0; i < 32; i++) s += '0123456789abcdef'[Math.floor(Math.random() * 16)]; return s; };
+  const now_utc = () => new Date().toISOString().slice(0, 19);
+  RZ.new_uid = new_uid; RZ.now_utc = now_utc;
   const K = 1e6;                         // ключ пикета = линия * K + пикет
   const nul = v => (v === undefined ? null : v);
   const byPosId = (a, b) => a.pos - b.pos || a.id - b.id;
@@ -130,10 +134,11 @@ globalThis.RZ = globalThis.RZ || {};
       for (const id of ids) { const r = idx.get(id); if (r) out.set(id, [r.pos, r.v, r.batch]); }
       return out;
     }
-    insert_row(sheet, pos, values, batch = null) {
+    insert_row(sheet, pos, values, batch = null, uid = null, origin = null, fmt = null, ts = null) {
       const meta = this._meta(), arr = this._w(sheet === 'sps' ? 'sps' : 'rows:' + sheet);
       const id = sheet === 'sps' ? ++meta.next_sps : ++meta.next_row;
-      const row = {id, pos, v: values.slice(), batch: sheet === 'sps' ? null : nul(batch), fmt: null};
+      const row = {id, pos, v: values.slice(), batch: sheet === 'sps' ? null : nul(batch), fmt: fmt || null};
+      if (sheet !== 'sps') { row.uid = uid || new_uid(); row.ts = ts || now_utc(); row.origin = origin || null; }
       const last = arr[arr.length - 1];
       if (last && byPosId(last, row) > 0) this.db.sorted.set(sheet, false);
       arr.push(row);
@@ -142,11 +147,13 @@ globalThis.RZ = globalThis.RZ || {};
       this.tx.dirty.add(sheet);
       return id;
     }
-    update_row(sheet, row_id, pos, values) {
+    /* origin: undefined - не трогать, иначе новое значение (откуда строка принята) */
+    update_row(sheet, row_id, pos, values, origin = undefined, ts = null) {
       const arr = this._w(sheet === 'sps' ? 'sps' : 'rows:' + sheet);
       const i = arr.findIndex(r => r.id === row_id);
       if (i < 0) return;
       arr[i] = {...arr[i], pos, v: values.slice()};
+      if (sheet !== 'sps') { arr[i].ts = ts || now_utc(); if (origin !== undefined) arr[i].origin = origin; }
       if (sheet === 'sps') this.db.drop_sps_index();
       this.db.sorted.set(sheet, false);
       this.db.index.delete(sheet);
@@ -167,8 +174,16 @@ globalThis.RZ = globalThis.RZ || {};
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
     }
-    delete_rows(sheet, ids) {
+    /* Строки со служебными полями: [[id, pos, значения, batch, uid, ts, origin, fmt]] */
+    rows_full(sheet) { return this._sorted(sheet).map(r => [r.id, r.pos, r.v, r.batch, r.uid, r.ts || '', r.origin || null, r.fmt]); }
+    origins(sheet) { const out = new Map(); for (const r of this._rows(sheet)) if (r.origin) out.set(r.id, r.origin); return out; }
+    max_pos(sheet) { let m = 0; for (const r of this._rows(sheet)) if (r.pos > m) m = r.pos; return m; }
+    gone_uids() { return new Set(this.p.gone); }
+    forget_gone(uids) { const s = new Set(uids); if (!s.size) return; this._w('gone'); this.p.gone = this.p.gone.filter(u => !s.has(u)); this.tx.dirty.add('gone'); }
+    add_gone(uids) { const g = this._w('gone'); for (const u of uids) if (u && !g.includes(u)) g.push(u); this.tx.dirty.add('gone'); }
+    delete_rows(sheet, ids, remember = true) {
       const name = sheet === 'sps' ? 'sps' : 'rows:' + sheet, gone = new Set(ids);
+      if (remember && sheet !== 'sps') this.add_gone(this.p[name].filter(r => gone.has(r.id) && r.uid).map(r => r.uid));   // удалённая строка при объединении не вернётся
       this._w(name);
       this.p[name] = this.p[name].filter(r => !gone.has(r.id));
       this.db.index.delete(sheet);
@@ -242,6 +257,28 @@ globalThis.RZ = globalThis.RZ || {};
       this.tx.dirty.add('events');
     }
     clear_events() { this._w('events'); this.p.events = new Map(); this.tx.dirty.add('events'); }
+
+    // ---- разбивка: интервалами, по одному на строку листа «Разбивка» ---------------------------
+    insert_staked(src, line, p1, p2, date, wid, worker) { this._w('staked').set(src, {src, line, p1, p2, date, wid, worker}); this.tx.dirty.add('staked'); }
+    delete_staked(src_ids) { const st = this._w('staked'); for (const s of src_ids) st.delete(s); this.tx.dirty.add('staked'); }
+    clear_staked() { this._w('staked'); this.p.staked = new Map(); this.tx.dirty.add('staked'); }
+    /* Map ключ пикета -> [линия, пикет, дата последней разбивки, топограф] */
+    _staked() {
+      const m = new Map();
+      for (const r of this.p.staked.values()) for (let p = r.p1; p <= r.p2; p++) {
+        const k = r.line * K + p, was = m.get(k);
+        if (!was || was[2] < r.date) m.set(k, [r.line, p, r.date, r.worker]);
+      }
+      return m;
+    }
+    staked_known(line, p1, p2) { const m = this._staked(); let n = 0; for (let p = p1; p <= p2; p++) if (m.has(line * K + p)) n++; return n; }
+    staked_points() { return [...this._staked().values()].sort((a, b) => a[0] - b[0] || a[1] - b[1]); }
+    staked_total() { return this._staked().size; }
+    staked_stats(d1, d2) {
+      const m = new Map();
+      for (const r of this.p.staked.values()) if (r.date >= d1 && r.date <= d2) m.set(r.worker, (m.get(r.worker) || 0) + r.p2 - r.p1 + 1);
+      return [...m].sort((a, b) => b[1] - a[1]);
+    }
 
     // ---- координаты пикетов (лист SPS) -----------------------------------------------------------
     sps_count() { let n = 0; for (const r of this.p.sps) if (r.v[0] !== null && r.v[1] !== null) n++; return n; }
@@ -363,7 +400,11 @@ globalThis.RZ = globalThis.RZ || {};
       }
       const lines = new Set();
       for (const f of this.p.field) lines.add(f[0]);
-      return {razm, podm, date_min: dmin, date_max: dmax, field: this.p.field.length, field_lines: lines.size};
+      for (const r of this.p.staked.values()) {
+        if (dmin === null || r.date < dmin) dmin = r.date;
+        if (dmax === null || r.date > dmax) dmax = r.date;
+      }
+      return {razm, podm, date_min: dmin, date_max: dmax, field: this.p.field.length, field_lines: lines.size, staked: this.staked_total()};
     }
     /* [[линия, пикет, дата, вид, src]] по виду, линии, src, дате, пикету */
     anomalies() {
@@ -401,6 +442,7 @@ globalThis.RZ = globalThis.RZ || {};
       const bin = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
       // как SQLite: сортировка по числу событий по убыванию, равные идут в обратном порядке имён
       return {
+        staked: this.staked_stats(d1, d2),
         days: rows(days).sort((x, y) => bin(x[0], y[0])),
         workers: rows(workers).sort((x, y) => (y[1] + y[2]) - (x[1] + x[2]) || bin(y[0], x[0])),
         lines: rows(lines).sort((x, y) => x[0] - y[0]),
@@ -423,7 +465,8 @@ globalThis.RZ = globalThis.RZ || {};
   class Database {
     constructor(kv) {
       this.kv = kv;
-      this.parts = {meta: {next_row: 0, next_sps: 0, next_batch: 0}, sps: [], batches: [], events: new Map(), field: [], anomalies: []};
+      this.parts = {meta: {next_row: 0, next_sps: 0, next_batch: 0}, sps: [], batches: [], events: new Map(), field: [], anomalies: [],
+        staked: new Map(), gone: []};
       for (const s of ROW_SHEETS) this.parts['rows:' + s] = [];
       this.sorted = new Map(); this.index = new Map(); this.dirty = new Set();
       this._spsIdx = null; this._fieldIdx = null;
@@ -439,7 +482,10 @@ globalThis.RZ = globalThis.RZ || {};
         else if (k === 'sps') db.parts.sps = unpack_sps(v);
         else if (k === 'batches') db.parts.batches = v;
         else if (k === 'events') db.parts.events = new Map(v.map(r => [r.src, r]));
-        else if (k.startsWith('rows:')) db.parts[k] = v.map(([id, pos, values, batch, fmt]) => ({id, pos, v: values, batch, fmt}));
+        else if (k === 'staked') db.parts.staked = new Map(v.map(r => [r.src, r]));
+        else if (k === 'gone') db.parts.gone = v;
+        else if (k.startsWith('rows:')) db.parts[k] = v.map(([id, pos, values, batch, fmt, uid, ts, origin]) =>
+          ({id, pos, v: values, batch, fmt, uid: uid || new_uid(), ts: ts || '', origin: origin || null}));
         else db.extra.set(k, v);
       }
       db.sorted.set('sps', true);
@@ -514,13 +560,15 @@ globalThis.RZ = globalThis.RZ || {};
         if (part === 'sps') entries.push(['sps', pack_sps(P.sps)]);
         else if (part === 'batches') entries.push(['batches', P.batches]);
         else if (part === 'events') entries.push(['events', [...P.events.values()]]);
-        else if (ROW_SHEETS.includes(part)) entries.push(['rows:' + part, P['rows:' + part].map(r => [r.id, r.pos, r.v, r.batch, r.fmt])]);
+        else if (part === 'staked') entries.push(['staked', [...P.staked.values()]]);
+        else if (part === 'gone') entries.push(['gone', P.gone]);
+        else if (ROW_SHEETS.includes(part)) entries.push(['rows:' + part, P['rows:' + part].map(r => [r.id, r.pos, r.v, r.batch, r.fmt, r.uid, r.ts, r.origin])]);
       }
       for (const k of extra) entries.push([k, this.extra.get(k)]);
       if (!entries.length) return this._flushing;
       this._flushing = this._flushing.then(() => this.kv.put(entries)).catch(err => {
         console.error('Не удалось сохранить данные', err);
-        for (const [k] of entries) if (k !== 'meta') { if (k.startsWith('rows:')) this.dirty.add(k.slice(5)); else if (['sps', 'batches', 'events'].includes(k)) this.dirty.add(k); else this._extraDirty.add(k); }
+        for (const [k] of entries) if (k !== 'meta') { if (k.startsWith('rows:')) this.dirty.add(k.slice(5)); else if (['sps', 'batches', 'events', 'staked', 'gone'].includes(k)) this.dirty.add(k); else this._extraDirty.add(k); }
         if (typeof RZ.onSaveError === 'function') RZ.onSaveError(err);
       });
       return this._flushing;
@@ -528,7 +576,8 @@ globalThis.RZ = globalThis.RZ || {};
     /* Полная выгрузка данных для резервной копии */
     snapshot() {
       const P = this.parts, out = {format: 'razmotka-backup', version: 1, meta: P.meta, batches: P.batches, sps: [], events: [...P.events.values()], rows: {}, extra: {}};
-      for (const s of ROW_SHEETS) out.rows[s] = P['rows:' + s].map(r => [r.id, r.pos, r.v, r.batch, r.fmt]);
+      for (const s of ROW_SHEETS) out.rows[s] = P['rows:' + s].map(r => [r.id, r.pos, r.v, r.batch, r.fmt, r.uid, r.ts, r.origin]);
+      out.staked = [...P.staked.values()]; out.gone = P.gone;
       out.sps = P.sps.map(r => [r.id, r.pos, ...r.v]);
       for (const [k, v] of this.extra) if (!k.startsWith('blob:')) out.extra[k] = v;
       return out;
@@ -538,14 +587,17 @@ globalThis.RZ = globalThis.RZ || {};
       if (!snap || snap.format !== 'razmotka-backup') throw new RZ.ValidationError('Это не файл копии данных программы.');
       this.write(repo => {
         const P = this.parts;
-        for (const s of ROW_SHEETS) { repo._w('rows:' + s); P['rows:' + s] = (snap.rows[s] || []).map(([id, pos, v, batch, fmt]) => ({id, pos, v, batch, fmt})); }
+        for (const s of ROW_SHEETS) { repo._w('rows:' + s); P['rows:' + s] = (snap.rows[s] || []).map(([id, pos, v, batch, fmt, uid, ts, origin]) =>
+          ({id, pos, v, batch, fmt, uid: uid || new_uid(), ts: ts || '', origin: origin || null})); }
+        repo._w('staked'); P.staked = new Map((snap.staked || []).map(r => [r.src, r]));
+        repo._w('gone'); P.gone = snap.gone || [];
         repo._w('sps'); P.sps = (snap.sps || []).map(([id, pos, ...v]) => ({id, pos, v, batch: null, fmt: null}));
         repo._w('batches'); P.batches = snap.batches || [];
         repo._w('events'); P.events = new Map((snap.events || []).map(r => [r.src, r]));
         repo._w('meta'); P.meta = {next_row: 0, next_sps: 0, next_batch: 0, ...(snap.meta || {})};
         repo.rebuild_state(same_day);
         for (const s of ROW_SHEETS) this.dirty.add(s);
-        for (const k of ['sps', 'batches', 'events']) this.dirty.add(k);
+        for (const k of ['sps', 'batches', 'events', 'staked', 'gone']) this.dirty.add(k);
         this.sorted.clear(); this.index.clear(); this._spsIdx = null;
       });
       this.coords = null;

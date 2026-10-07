@@ -1,25 +1,30 @@
 /* Листы журнала: панель с кнопками, таблица, сохранение, проведение и отмена */
-const Sheets = {meta: null, pages: {}, workers: [], lookup: new Map()};
+const Sheets = {meta: null, pages: {}, lookups: {workers: new Map(), topo: new Map()}};
 
-/* ФИО -> ID, как ВПР по листу «ID старших»: точное совпадение без учёта регистра, первое найденное */
-function setWorkers(pairs) {
-  Sheets.workers = pairs;
-  Sheets.lookup = new Map();
+/* ФИО -> ID, как ВПР по листу «ID старших» (или «ID топографов»): точное совпадение без учёта регистра, первое найденное.
+   list - какой список: workers (старшие бригад ГФО) или topo (топографы). */
+function setWorkers(pairs, list = 'workers') {
+  const lookup = Sheets.lookups[list] = new Map();
   for (const [id, name] of pairs) {
     if (name === null || String(name).trim() === '') continue;
     const key = String(name).trim().toLowerCase();
-    if (!Sheets.lookup.has(key)) Sheets.lookup.set(key, id === null ? 0 : id);
+    if (!lookup.has(key)) lookup.set(key, id === null ? 0 : id);
   }
-  $('gx-workers').innerHTML = pairs.filter(p => p[1]).map(p => `<option value="${esc(p[1])}">`).join('');
+  $('gx-' + list).innerHTML = pairs.filter(p => p[1]).map(p => `<option value="${esc(p[1])}">`).join('');
 }
 async function loadWorkers() {
-  const j = await api('/api/sheet?name=workers');
-  setWorkers(j.rows.map(r => [r[3][0], r[3][1]]));
+  for (const list of ['workers', 'topo']) {
+    const j = await api('/api/sheet?name=' + list);
+    setWorkers(j.rows.map(r => [r[3][0], r[3][1]]), list);
+  }
 }
 
 const whenText = ts => ts ? dru(ts.slice(0, 10)) + ' в ' + ts.slice(11, 16) : '';
 const rowsWord = n => nf(n) + ' ' + plural(n, 'строка', 'строки', 'строк');
 const chanWord = n => nf(n) + ' ' + plural(n, 'канал', 'канала', 'каналов');
+const picketWord = n => nf(n) + ' ' + plural(n, 'пикет', 'пикета', 'пикетов');
+const DONE_WORD = {razm: 'размотано', podm: 'подмотано', razb: 'разбито'};
+const cap = s => s[0].toUpperCase() + s.slice(1);
 
 class SheetPage {
   constructor(meta) {
@@ -32,9 +37,10 @@ class SheetPage {
     this.loaded = false;
     this.action = null;
     this.sel = {cells: 1, nums: 0, sum: 0, done: 0, real: 0};
-    this.done = this.work ? (meta.wtype ? 'размотано' : 'подмотано') : '';
+    this.done = this.work ? DONE_WORD[meta.id] : '';
+    this.units = meta.unit === 'пикет' ? picketWord : chanWord;        // в чём считается работа листа
     const el = this.el = $('p-' + meta.id);
-    el.classList.add(meta.wtype === 1 ? 'acc-razm' : meta.wtype === 0 ? 'acc-podm' : 'acc-plain');
+    el.classList.add(this.work ? 'acc-' + meta.id : 'acc-plain');
     el.innerHTML =
       `<div class="sh-top"><h1><span class="sh-h"></span>${!meta.heading ? '' : this.work
           ? ` <button type="button" class="sh-word" title="Цвет листа: щелчок — выбрать">${esc(meta.title)}</button>`
@@ -66,16 +72,17 @@ class SheetPage {
             meta.cols.map((c, i) => `<option value="${i}">${esc(c.title)}</option>`).join('') + `</select>` +
           `<input class="f-text" type="search" placeholder="Найти и отфильтровать (Ctrl+F)" spellcheck="false">` +
           (this.work ? `<select class="f-state" title="Какие строки показывать"><option value="">Все строки</option>` +
-            `<option value="draft">Ждут кнопки</option><option value="done">${this.done[0].toUpperCase() + this.done.slice(1)}</option></select>` : '') +
+            `<option value="draft">Ждут кнопки</option><option value="got">Приняты из файла</option><option value="done">${cap(this.done)}</option></select>` : '') +
           `<button class="tb tb-wide f-reset" title="Снять фильтр" hidden>Снять фильтр</button><span class="f-count"></span></div>` +
       `</div>` +
       `<div class="sh-grid card"></div>` +
       `<div class="sh-status"><span class="sh-sel"></span>` +
-        (this.work ? `<span class="sh-legend"><i class="mk done"></i>${this.done}<i class="mk draft"></i>ждёт кнопки «${esc(meta.button)}»</span>` : '') +
+        (this.work ? `<span class="sh-legend"><i class="mk done"></i>${this.done}<i class="mk draft"></i>ждёт кнопки «${esc(meta.button)}»` +
+          `<span class="sh-got" hidden><i class="mk got"></i>принято из файла, ждёт кнопки</span></span>` : '') +
         `<span class="sh-save"></span></div>`;
     this.grid = new Grid(el.querySelector('.sh-grid'), {
       sheet: meta,
-      lookup: () => Sheets.lookup,
+      lookup: () => Sheets.lookups[meta.lookup] || Sheets.lookups.workers,
       cellRule: meta.id === 'info' ? r => Sheets.meta.info_rules[r] : null,
       notify: toast,
       onChange: (changed, removed) => this.queue(changed, removed),
@@ -89,7 +96,7 @@ class SheetPage {
     this.colors = {c: '#D70015', g: '#FCE28A'};       // последний выбранный цвет текста и заливки
     this._bindTools();
     const word = el.querySelector('button.sh-word');           // название листа в заголовке открывает выбор цвета темы
-    if (word) word.onclick = () => openTheme(word, meta.wtype === 1 ? 'razm' : 'podm');
+    if (word) word.onclick = () => openTheme(word, meta.id);
     el.querySelector('.sh-bar').onclick = e => {
       const b = e.target.closest('button');
       if (b && !b.disabled) this[b.dataset.a]();
@@ -172,6 +179,7 @@ class SheetPage {
     const active = !!(text || state);
     g.setFilter(!active ? null : row => {
       if (state === 'done' && !row.done) return false;
+      if (state === 'got' && (row.done || !row.from)) return false;
       if (state === 'draft' && (row.done || g.isBlank(row))) return false;
       return !text || cols.some(c => g.text(row, c).toLowerCase().includes(text));
     });
@@ -190,21 +198,22 @@ class SheetPage {
   }
 
   title() {
-    return this.meta.heading ? 'Журнал ГФО' : this.meta.title;      // номер партии теперь стоит в шапке меню
+    return this.meta.heading ? this.meta.prefix : this.meta.title;   // «Журнал ГФО» или «Журнал ТГО»; номер партии стоит в шапке меню
   }
   async show() {
     this.el.querySelector('.sh-h').textContent = this.title();
     if (!this.loaded || dirty[this.name]) { dirty[this.name] = false; await this.load(this.loaded); }
     else this.grid.render();
+    this.stale = false;
     this.grid.focus();
   }
   async load(keep) {
     const j = await api('/api/sheet?name=' + this.name);
     if (j.error) return toast(j.error);
     this.action = j.action || null;
-    this.grid.setData(j.rows.map(r => ({id: r[0], pos: r[1], done: !!r[2], v: r[3], f: r[4] || undefined})), keep);
+    this.grid.setData(j.rows.map(r => ({id: r[0], pos: r[1], done: !!r[2], v: r[3], f: r[4] || undefined, from: r[5] || ''})), keep);
     if (this.filtered) this.el.querySelector('.f-count').textContent = `Показано ${nf(this.grid.view.length)} из ${nf(this.grid.rows.length)}`;
-    if (this.name === 'workers') setWorkers(j.rows.map(r => [r[3][0], r[3][1]]));
+    if (this.meta.kind === 'workers') setWorkers(j.rows.map(r => [r[3][0], r[3][1]]), this.name);
     if (!this.loaded) { this.loaded = true; this.grid.scrollToEnd(); }
     this.setSave('');
     this.updateBar();
@@ -212,18 +221,20 @@ class SheetPage {
 
   /* ---------- строка состояния и кнопки ---------- */
   drafts() {
-    let rows = 0, channels = 0;
+    let rows = 0, channels = 0, got = 0;
     const g = this.grid, c = g.ix.count;
     for (const row of g.rows) {
       if (row.done || g.isBlank(row)) continue;
       rows++;
+      if (row.from) got++;
       const n = g.calc(row, c);
       if (typeof n === 'number') channels += n;
     }
-    return {rows, channels};
+    return {rows, channels, got};
   }
   updateBar() {
     const q = s => this.el.querySelector(s), s = this.sel;
+    if (typeof workSheetHook === 'function') workSheetHook(this);      // задания и «кто работает на этом телефоне» (js/work.js)
     q('.sh-sel').innerHTML = s.cells > 1
       ? `<span>Выделено ячеек: ${nf(s.cells)}</span>` + (s.nums ? `<span>Чисел: ${nf(s.nums)}</span><span>Сумма: <b>${nf(s.sum)}</b></span>` : '')
       : `<span>Строк в таблице: ${nf(this.grid.rows.length)}</span>`;
@@ -235,10 +246,11 @@ class SheetPage {
     const d = this.drafts();
     q('[data-a=apply]').disabled = !d.rows;
     q('[data-a=undo]').disabled = !this.action;
-    q('[data-a=undo]').title = this.action ? `Последнее действие: ${whenText(this.action.ts)}, ${rowsWord(this.action.rows)}, ${chanWord(this.action.channels)}` : 'Отменять нечего';
+    q('[data-a=undo]').title = this.action ? `Последнее действие: ${whenText(this.action.ts)}, ${rowsWord(this.action.rows)}, ${this.units(this.action.channels)}` : 'Отменять нечего';
+    q('.sh-got').hidden = !d.got;
     q('[data-a=unapply]').disabled = !s.done;
     q('.sh-state').innerHTML = d.rows
-      ? `Ждут кнопки «${esc(this.meta.button)}»: <b>${rowsWord(d.rows)}</b>, ${chanWord(d.channels)}`
+      ? `Ждут кнопки «${esc(this.meta.button)}»: <b>${rowsWord(d.rows)}</b>, ${this.units(d.channels)}` + (d.got ? ` · из файлов: ${nf(d.got)}` : '')
       : (this.grid.rows.length ? 'Все строки проведены' : 'Таблица пуста. Вводите строки или загрузите журнал из Excel в разделе «Данные»');
     $('nav-' + this.name).textContent = d.rows ? nf(d.rows) : '';
   }
@@ -256,7 +268,11 @@ class SheetPage {
     if (this.name === 'sps' || this.name === 'oo' || this.name === 'info') dirty.field = true;   // от них зависит карта
     this.setSave('pending');
     this.updateBar();
-    if (this.name === 'workers') { setWorkers(this.grid.rows.map(r => [r.v[0], r.v[1]])); this.grid.render(); }
+    if (this.meta.kind === 'workers') {                       // список исполнителей изменился: ID в листах работ пересчитываются
+      setWorkers(this.grid.rows.map(r => [r.v[0], r.v[1]]), this.name); this.grid.render();
+      for (const p of Object.values(Sheets.pages)) if (p.meta.lookup === this.name && p.loaded) p.stale = true;
+    }
+    if (this.name === 'razb') dirty.field = true;             // задания на разбивку видны на карте
     this.flush();
   }
   /* Правки уходят на сервер по очереди. Пока идёт сохранение, новые правки ждут своей очереди в том же проходе. */
@@ -322,13 +338,67 @@ class SheetPage {
     await this.load(true);
     await loadSummary();
   }
+  /* Табло перед проведением пачки строк: кто сколько выполнил. Строки можно снять галочкой: они останутся ждать кнопки
+     (например, задания, которые за смену не выполнены). Возвращает id выбранных строк, null - если выбраны все, false - отмена. */
+  async board() {
+    const g = this.grid, ix = g.ix, rows = g.rows.filter(r => !r.done && !g.isBlank(r));
+    if (rows.length < 2 && !rows.some(r => r.from)) return null;          // одна своя строка: спрашивать не о чем
+    const n = r => { const v = g.calc(r, ix.count); return typeof v === 'number' ? v : 0; };
+    const who = new Map();
+    for (const r of rows) { const k = String(r.v[ix.worker] === null ? '—' : r.v[ix.worker]).trim(); if (!who.has(k)) who.set(k, []); who.get(k).push(r); }
+    const unit = this.meta.unit === 'пикет' ? 'Пикетов' : 'Каналов', line = r => {
+      const a = r.v[ix.p1], b = r.v[ix.p2];
+      return `<tr class="bd-row"><td><input type="checkbox" data-row="${rows.indexOf(r)}" checked aria-label="Провести строку"></td>` +
+        `<td>${esc(g.text(r, ix.date))}</td><td class="r">${esc(g.text(r, ix.line))}</td><td class="r">${a === null && b === null ? '' : esc(a === b ? a : (a === null ? '?' : a) + '–' + (b === null ? '?' : b))}</td>` +
+        `<td class="r">${nf(n(r))}</td><td class="bd-from">${r.from ? 'из файла: ' + esc(r.from) : ''}</td></tr>`; };
+    let html = `<p>Сверьте с фактом. Снимите галочку со строк, которые проводить рано: они останутся ждать кнопки «${esc(this.meta.button)}».</p>` +
+      `<div class="board"><table><tr><th></th><th>Дата</th><th class="r">Линия</th><th class="r">ПП</th><th class="r">${unit}</th><th></th></tr>`;
+    let k = 0;
+    for (const [name, list] of who) {
+      html += `<tr class="bd-who" data-who="${k}"><td><input type="checkbox" data-who="${k}" checked aria-label="Все строки исполнителя"></td>` +
+        `<td colspan="3"><b>${esc(name)}</b></td><td class="r"><b class="bd-sum"></b></td><td class="bd-n"></td></tr>` + list.map(line).join('');
+      k++;
+    }
+    html += `</table></div><p class="bd-total"></p>`;
+    const answer = ask(`${this.meta.button}: кто сколько выполнил`, html, 'Внести изменения', false, true);
+    const body = $('dBody'), boxes = () => [...body.querySelectorAll('input[data-row]')];
+    const groups = [...who.values()];
+    const recount = () => {
+      const on = new Set(boxes().filter(b => b.checked).map(b => rows[+b.dataset.row]));
+      groups.forEach((list, i) => {
+        const mine = list.filter(r => on.has(r)), tr = body.querySelector(`tr[data-who="${i}"]`), box = tr.querySelector('input');
+        tr.querySelector('.bd-sum').textContent = nf(mine.reduce((s, r) => s + n(r), 0));
+        tr.querySelector('.bd-n').textContent = rowsWord(mine.length);
+        box.checked = mine.length > 0; box.indeterminate = mine.length > 0 && mine.length < list.length;
+      });
+      const all = [...on];
+      body.querySelector('.bd-total').innerHTML = all.length ? `Будет проведено: <b>${rowsWord(all.length)}</b>, ${this.units(all.reduce((s, r) => s + n(r), 0))}` +
+        (all.length < rows.length ? `. Останутся ждать: ${rowsWord(rows.length - all.length)}` : '') : 'Ни одна строка не отмечена.';
+      $('dYes').disabled = !all.length;
+    };
+    body.onchange = e => {
+      const t = e.target;
+      if (t.dataset.who !== undefined && t.dataset.row === undefined) for (const b of boxes()) if (groups[+t.dataset.who].includes(rows[+b.dataset.row])) b.checked = t.checked;
+      recount();
+    };
+    recount();
+    const ok = await answer;
+    const picked = boxes().filter(b => b.checked).map(b => rows[+b.dataset.row]);
+    body.onchange = null; $('dYes').disabled = false;
+    if (!ok || !picked.length) return false;
+    return picked.length === rows.length ? null : picked.map(r => r.id);
+  }
   async apply() {
     if (!(await this.flush())) return;
-    let j = await post('/api/sheet/apply', {name: this.name, force: false});
+    if (this.stale) await this.load(true);
+    const ids = await this.board();
+    if (ids === false) return this.grid.focus();
+    const body = ids ? {name: this.name, ids} : {name: this.name};
+    let j = await post('/api/sheet/apply', {...body, force: false});
     if (j.warnings) {
       const ok = await ask('Проверьте данные', '<p>В строках есть спорные места:</p><ul>' + j.warnings.map(w => '<li>' + esc(w) + '</li>').join('') + '</ul>', 'Всё равно ' + this.meta.button.toLowerCase());
       if (!ok) return this.grid.focus();
-      j = await post('/api/sheet/apply', {name: this.name, force: true});
+      j = await post('/api/sheet/apply', {...body, force: true});
     }
     if (j.error) {
       toast(j.error);
@@ -337,14 +407,14 @@ class SheetPage {
       if (r >= 0) this.grid.select(r, j.col || 0);
       return this.grid.focus();
     }
-    toast(`${this.done[0].toUpperCase() + this.done.slice(1)}: ${rowsWord(j.rows)}, ${chanWord(j.channels)}.`);
+    toast(`${cap(this.done)}: ${rowsWord(j.rows)}, ${this.units(j.channels)}.`);
     await this.refreshAfterAction();
     this.grid.focus();
   }
   async undo() {
     const a = this.action;
     if (!a) return;
-    if (!await ask(this.meta.undo + '?', `<p>Действие от ${esc(whenText(a.ts))}: ${rowsWord(a.rows)}, ${chanWord(a.channels)}. Строки вернутся в черновик, оборудование на поле пересчитается.</p>`, this.meta.undo)) return this.grid.focus();
+    if (!await ask(this.meta.undo + '?', `<p>Действие от ${esc(whenText(a.ts))}: ${rowsWord(a.rows)}, ${this.units(a.channels)}. Строки вернутся в черновик, ${this.name === 'razb' ? 'с карты разбивка исчезнет' : 'оборудование на поле пересчитается'}.</p>`, this.meta.undo)) return this.grid.focus();
     if (!(await this.flush())) return;
     const j = await post('/api/sheet/undo', {name: this.name});
     if (j.error) return toast(j.error);

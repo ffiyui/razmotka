@@ -70,6 +70,58 @@ globalThis.RZ = globalThis.RZ || {};
     return new Download(r.data, r.name, 'application/zip', {'X-Report': encodeURIComponent(JSON.stringify(brief))});
   }
 
+  /* Контуры DXF и треки лежат рядом с настройками: приходят с файлом проекта, на телефоне их только показывают */
+  const COLOR = /^#[0-9a-fA-F]{6}$/;
+  function dxf_load(ctx) {
+    const area = p => { let s = 0; for (let i = 0; i < p.length; i += 2) { const k = (i + 2) % p.length; s += p[i] * p[k + 1] - p[k] * p[i + 1]; } return Math.abs(s) / 2; };
+    return {layers: (ctx.db.get('dxf', []) || []).map((l, n) => ({id: n + 1, name: l.name, color: l.color, visible: l.visible !== false, labels: l.labels !== false,
+      count: l.items.length, items: l.items.map((it, k) => ({id: k + 1, name: it.name, kind: it.kind, pts: it.pts, ...(it.kind === 'poly' ? {area: Math.round(area(it.pts) * 10) / 10} : {})}))}))};
+  }
+  function dxf_layer(ctx, j) {
+    const list = (ctx.db.get('dxf', []) || []).slice(), i = parseInt(j.id, 10) - 1;
+    if (!list[i]) throw new ValidationError('Слой не найден: обновите страницу.');
+    const l = {...list[i]};
+    if ('name' in j) { const name = String(j.name || '').trim(); if (!name || name.length > 80) throw new ValidationError('Название слоя: от 1 до 80 знаков.'); l.name = name; }
+    if ('color' in j) { if (!COLOR.test(String(j.color || ''))) throw new ValidationError('Цвет слоя задаётся как #RRGGBB.'); l.color = String(j.color).toUpperCase(); }
+    for (const k of ['visible', 'labels']) if (k in j) l[k] = !!j[k];
+    list[i] = l; ctx.db.set('dxf', list);
+    return {ok: true};
+  }
+  function dxf_remove(ctx, j) {
+    const list = (ctx.db.get('dxf', []) || []).slice(), i = parseInt(j.id, 10) - 1;
+    if (!list[i]) throw new ValidationError('Слой не найден: обновите страницу.');
+    list.splice(i, 1); ctx.db.set('dxf', list);
+    return {ok: true};
+  }
+  /* Треки: запись своего пути. pts - [x, y, время (с от начала), ...] в координатах листа SPS */
+  const tracks_load = ctx => ({items: (ctx.db.get('tracks', []) || []).map(t => {
+    let len = 0; for (let i = 3; i < t.pts.length; i += 3) len += Math.hypot(t.pts[i] - t.pts[i - 3], t.pts[i + 1] - t.pts[i - 2]);
+    return {uid: t.uid, name: t.name, ts: t.ts, show: !!t.show, pts: t.pts, length: Math.round(len), seconds: t.pts.length >= 3 ? Math.round(t.pts[t.pts.length - 1]) : 0};
+  })});
+  function tracks_save(ctx, j) {
+    let list = (ctx.db.get('tracks', []) || []).slice();
+    if (j.add) {
+      const pts = (Array.isArray(j.add.pts) ? j.add.pts : []).map(Number);
+      if (pts.length < 6 || pts.length % 3 || pts.some(v => !Number.isFinite(v))) throw new ValidationError('Трек слишком короткий: в нём меньше двух точек.');
+      if (list.length >= 500) throw new ValidationError('Треков уже 500: удалите ненужные.');
+      const t = {uid: RZ.new_uid(), name: String(j.add.name || 'Трек').trim().slice(0, 80) || 'Трек', ts: RZ.now_utc(), show: true, pts};
+      list.push(t); ctx.db.set('tracks', list);
+      return {ok: true, uid: t.uid};
+    }
+    const i = list.findIndex(t => t.uid === j.uid);
+    if (i < 0) throw new ValidationError('Трек не найден: обновите страницу.');
+    if (j.remove) list.splice(i, 1);
+    else {
+      const t = {...list[i]};
+      if ('name' in j) { const name = String(j.name || '').trim(); if (!name || name.length > 80) throw new ValidationError('Название трека: от 1 до 80 знаков.'); t.name = name; }
+      if ('show' in j) t.show = !!j.show;
+      list[i] = t;
+    }
+    ctx.db.set('tracks', list);
+    return {ok: true};
+  }
+  async function project_export(ctx, a) { const r = await RZ.project.export_project(ctx.db, ctx.cfg, a); return new Download(r.data, r.name, 'application/octet-stream'); }
+
   const C = ctx => ctx;                       // обработчики получают {db, cfg}
   // GET: функция(ctx, параметры адреса)
   const GET = {
@@ -90,12 +142,17 @@ globalThis.RZ = globalThis.RZ || {};
     '/api/picket': (ctx, a) => RZ.reports.picket_xy(ctx.db, a.line, a.picket),
     '/api/nearest': (ctx, a) => RZ.reports.nearest(ctx.db, a.x, a.y),
     '/api/backup': backup,
+    '/api/tasks': (ctx, a) => RZ.tasks.list(ctx.db, a.me || ''),
+    '/api/task': (ctx, a) => RZ.tasks.points(ctx.db, a.sheet, a.id),
+    '/api/dxf': dxf_load,
+    '/api/tracks': tracks_load,
+    '/api/project/export': project_export,
   };
   // POST с JSON: функция(ctx, тело запроса)
   const POST = {
     '/api/sheet/save': (ctx, j) => RZ.svc_sheets.save_rows(ctx.db, j.name, j.rows || []),
     '/api/sheet/delete': (ctx, j) => RZ.svc_sheets.delete_rows(ctx.db, ctx.cfg, j.name, j.ids || []),
-    '/api/sheet/apply': (ctx, j) => RZ.svc_sheets.apply(ctx.db, ctx.cfg, j.name, !!j.force),
+    '/api/sheet/apply': (ctx, j) => RZ.svc_sheets.apply(ctx.db, ctx.cfg, j.name, !!j.force, j.ids || null),
     '/api/sheet/undo': (ctx, j) => RZ.svc_sheets.undo(ctx.db, ctx.cfg, j.name),
     '/api/sheet/unapply': (ctx, j) => RZ.svc_sheets.unapply(ctx.db, ctx.cfg, j.name, j.ids || []),
     '/api/cleanup': (ctx, j) => RZ.svc_sheets.cleanup(ctx.db, ctx.cfg, j.from, j.to, j.types || []),
@@ -107,6 +164,13 @@ globalThis.RZ = globalThis.RZ || {};
     '/api/underlay': (ctx, j) => RZ.underlay.save_meta(ctx.db, j),
     '/api/underlay/check': (ctx, j) => RZ.underlay.check(j),
     '/api/underlay/remove': (ctx, j) => RZ.underlay.remove(ctx.db, j.id),
+    '/api/find': (ctx, j) => RZ.reports.find(ctx.db, j.ranges),
+    '/api/task/done': (ctx, j) => RZ.tasks.complete(ctx.db, ctx.cfg, j.sheet, j.id, j.visited || [], !!j.force),
+    '/api/dxf/layer': dxf_layer,
+    '/api/dxf/remove': dxf_remove,
+    '/api/tracks': tracks_save,
+    '/api/project/apply': (ctx, j) => RZ.project.apply(ctx.db, ctx.cfg, j.token, j.mode || 'merge', j.parts || null),
+    '/api/project/discard': (ctx, j) => RZ.project.discard(j.token),
     '/api/bye': () => ({ok: true}),
     '/api/quit': () => ({ok: true}),
   };
@@ -119,6 +183,7 @@ globalThis.RZ = globalThis.RZ || {};
     '/api/compare': (ctx, a, b) => RZ.compare.compare(ctx.db, ctx.cfg, b),
     '/api/underlay/image': (ctx, a, b) => RZ.underlay.save_image(ctx.db, a.name, b, a.id),
     '/api/restore': (ctx, a, b) => restore(ctx, b),
+    '/api/project/inspect': (ctx, a, b) => RZ.project.inspect(ctx.db, ctx.cfg, RZ.exporter.unpack_files(b)),
   };
   // запросы с файлом читают тело как байты; остальные получают разобранный JSON
   const BLOB_BODY = new Set(['/api/underlay/image']);
