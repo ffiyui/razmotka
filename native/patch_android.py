@@ -26,7 +26,7 @@ block += ('    <queries>\n'
           '    </queries>\n')
 s = s.replace('<application', block + '\n    <application', 1)
 service = ('        <service android:name="com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService"\n'
-           '            android:foregroundServiceType="location" android:exported="false"\n'
+           '            android:foregroundServiceType="location"\n'
            '            tools:replace="android:foregroundServiceType" />\n')
 s = s.replace('</application>', service + '    </application>', 1)
 open(mf, 'w', encoding='utf-8').write(s)
