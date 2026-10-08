@@ -800,3 +800,16 @@ select{-webkit-appearance:none;appearance:none;padding-right:36px;line-height:1.
   background-repeat:no-repeat;background-position:right 14px center;background-size:12px 8px}
 .side select{width:100%;min-height:40px;border-radius:999px;padding-left:16px}
 @media (pointer:coarse){.side select{min-height:44px}}
+
+/* ---------- облегчённый режим (слабые телефоны, приложение Android): js/compat.js ставит html.lite ----------
+   Размытие под «стеклом», зерно и большие мягкие тени пересчитываются при каждой прокрутке и каждом кадре карты -
+   на слабом телефоне это и есть «лаги». Здесь всё то же, но плоское. */
+html.lite{--noise:none;--sheen:none;--blur:none;--glass:rgba(255,255,255,.9);--glass-strong:#fff;
+  --panel:#F7F9FC;--panel-strong:#FAFBFE;--backdrop:linear-gradient(160deg,#EBF0F8,#DCE3F0);
+  --shadow:0 1px 3px rgba(40,50,90,.12);--shadow-lift:0 4px 14px rgba(40,50,90,.18);--edge:inset 0 0 0 1px rgba(60,60,67,.08)}
+html.lite *,html.lite *::before,html.lite *::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;transition:none!important}
+html.lite .page.entering,html.lite .page.leaving{animation:none!important;opacity:1!important;transform:none!important}
+html.lite body::before{background:linear-gradient(160deg,#EBF0F8,#DCE3F0)}
+html.lite .sp-laid,html.lite .sp-razm,html.lite .sp-podm,html.lite .sp-title i,html.lite .sp-card,html.lite .sp-sub,html.lite .sp-foot{animation-duration:.01s!important;animation-iteration-count:1!important;animation-delay:0s!important}
+html.lite .gx-n,html.lite .gx-head,html.lite .gx-corner{background:#F0F3F8}
+html.lite .gx-c{background:#fff}

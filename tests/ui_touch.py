@@ -163,7 +163,7 @@ with sync_playwright() as p:
         pg.tap('#mFull'); pg.wait_for_timeout(300); ok('exit pseudo-fullscreen', not pg.evaluate("document.body.classList.contains('mapfull')"))
         # поворот устройства
         pg.set_viewport_size({'width': 844, 'height': 390}); pg.wait_for_timeout(500)
-        cs = pg.evaluate("[cv.width/(devicePixelRatio||1), document.getElementById('mapBox').getBoundingClientRect().width]")
+        cs = pg.evaluate("[cv.width/mapDpr(), document.getElementById('mapBox').getBoundingClientRect().width]")
         ok('canvas follows rotation', abs(cs[0] - cs[1]) < 1, cs)
         pg.screenshot(path=u.SHOTS + '/t_map_land.png')
         ok('no js errors (map)', not pg.errs, pg.errs)

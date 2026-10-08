@@ -14,6 +14,7 @@
   const STT = has('SpeechRecognition') ? plugin('SpeechRecognition') : null;
   const FS = has('Filesystem') ? plugin('Filesystem') : null;
   const SHARE = has('Share') ? plugin('Share') : null;
+  const APP = has('App') ? plugin('App') : null;
   const N = {platform: C.getPlatform ? C.getPlatform() : 'android'};
 
   // ---------------------------------------------------------------- GPS
@@ -74,6 +75,24 @@
     catch (e) { if (!/cancel/i.test(String(e && e.message || e))) throw e; }
   };
 
+  /* Файл, открытый в приложении из другого («Открыть с помощью»): приходит адресом content:// или file://.
+     cb получает File; вызывается и для файла, с которым приложение запустили */
+  N.onOpenFile = cb => {
+    if (!APP || !FS) return;
+    const take = async url => {
+      if (!url || !/^(content|file):/i.test(url)) return;
+      try {
+        const r = await FS.readFile({path: url});
+        const bin = atob(typeof r.data === 'string' ? r.data : ''), bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        let name = decodeURIComponent(url.split(/[\\/]/).pop() || '').replace(/[?#].*$/, '');
+        if (!/\.(rzm|zip)$/i.test(name)) name = 'Файл проекта.rzm';
+        cb(new File([bytes], name, {type: 'application/octet-stream'}));
+      } catch (e) { if (window.toast) toast('Файл не открылся: ' + (e && e.message || e)); }
+    };
+    APP.addListener('appUrlOpen', e => take(e && e.url));
+    APP.getLaunchUrl().then(r => take(r && r.url)).catch(() => {});
+  };
   window.NATIVE = N;
   document.documentElement.classList.add('native');
 })();

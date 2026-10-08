@@ -56,6 +56,8 @@ with sync_playwright() as p:
     br = p.chromium.launch()
     ctx = br.new_context(**p.devices[os.environ.get('UI_DEVICE', 'iPhone 14')], accept_downloads=True, permissions=['geolocation'], geolocation={'latitude': 51.4652, 'longitude': 56.3954})
     ctx.add_init_script("try{localStorage.setItem('installhint','1')}catch(e){}")      # подсказка про установку здесь не нужна
+    if os.environ.get('UI_LITE') in ('0', '1'):                                         # облегчённый вид: 1 - включён, 0 - выключен
+        ctx.add_init_script("try{localStorage.setItem('lite','%s')}catch(e){}" % os.environ['UI_LITE'])
     page = ctx.new_page(); errs = []
     page.on('pageerror', lambda e: errs.append(str(e)))
     page.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'favicon' not in m.text and 'serviceWorker' not in m.text else None)
@@ -78,7 +80,7 @@ with sync_playwright() as p:
 
     # ---- файл проекта с ПК
     go('data')
-    page.set_input_files('#prjFile', path); page.click('#prjLoad'); page.wait_for_selector('#veil[style*=flex] #prjInner', timeout=15000)
+    page.set_input_files('#prjFile', path); page.wait_for_selector('#veil[style*=flex] #prjInner', timeout=15000)
     ok('пустому телефону предлагается замена проекта', page.is_checked('input[name=prjMode][value=replace]') and 'Разбивка: 3 строки' in page.inner_text('#prjInner'), page.inner_text('#prjInner')[:200])
     shot('ios_project_load')
     page.click('#dYes'); page.wait_for_function("document.getElementById('dTitle').textContent==='Проект загружен'", timeout=15000)

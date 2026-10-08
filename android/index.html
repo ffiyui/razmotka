@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <title>Контроль размотки</title>
+<script src="js/compat.js"></script>
 <link rel="stylesheet" href="css/app.css">
 </head><body>
 <div class="splash" id="splash">
@@ -245,6 +246,10 @@
       <div class="dctl"><label for="vcVoice">Голос</label><select id="vcVoice"></select></div>
       <div class="dctl"><label class="tick"><input type="checkbox" id="vcMic"> Слушать команды (микрофон)</label></div>
       <div class="dact"><button class="btn" id="vcTest">Проверить голос</button><span class="dnote" id="vcNote"></span></div></div>
+    <div class="card dcard" id="liteCard"><h3>Скорость работы</h3>
+      <p>Облегчённый вид — для слабых телефонов: без размытия «стекла» и анимаций, карта рисуется в меньшем разрешении. Всё остальное работает так же.</p>
+      <div class="dctl"><label class="tick"><input type="checkbox" id="liteOn"> Облегчённый вид</label></div>
+      <div class="dact"><span class="dnote" id="liteNote"></span></div></div>
     <div class="card dcard"><h3>Копия данных</h3>
       <p>Все данные хранятся в памяти этого телефона. Раз в неделю сохраняйте копию в «Файлы» или отправляйте себе: если приложение удалить, данные пропадут.</p>
       <div class="dctl"><input type="file" id="bkFile" accept=".json,application/json"></div>
@@ -293,6 +298,7 @@
 <script src="engine/compare.js"></script>
 <script src="engine/exporter.js"></script>
 <script src="engine/underlay.js"></script>
+<script src="engine/sqlite.js"></script>
 <script src="engine/project.js"></script>
 <script src="engine/api.js"></script>
 <script src="engine/boot.js"></script>

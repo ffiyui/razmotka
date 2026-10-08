@@ -5,7 +5,8 @@ let V = {s: 1, ox: 0, oy: 0, deg: 0, c: 1, n: 0};   // вид: масштаб, �
 let B = null;                                 // границы данных
 let BSETS = [];                               // наборы точек, по которым считаются границы
 const U = {items: [], active: 0, cache: {}};  // подложки: список, номер выбранной, загруженные картинки по номерам
-const cv = $('map'), ctx = cv.getContext('2d');
+const cv = $('map');
+let ctx = cv.getContext('2d');          // let: слой точек рисуется теми же функциями во внеэкранный холст (drawPoints)
 const DX = {layers: [], box: []};             // контуры DXF из файла проекта; работа с ними, поиск, задания и треки - в js/work.js
 const FIND = {pts: [], labels: []};           // найденные пикеты
 
@@ -40,7 +41,7 @@ async function loadMapStyle() {
 }
 let styleTimer = 0;
 function styleChanged() {
-  sprites.clear(); paintSwatches(); draw();
+  sprites.clear(); paintSwatches(); LC = null; draw();
   clearTimeout(styleTimer); styleTimer = setTimeout(() => post('/api/prefs', {map_style: MS}).catch(() => {}), 400);
 }
 /* Окно слоя: форма, размер, цвет */
@@ -174,7 +175,7 @@ $('mPresets').onclick = e => {
 /* ---------- вид ---------- */
 let mapSize = null;                           // размер карты при последней отрисовке
 function resizeMap() {
-  const r = $('mapBox').getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  const r = $('mapBox').getBoundingClientRect(), d = mapDpr();
   if (!r.width) return;
   mapSize = {w: r.width, h: r.height};
   cv.width = r.width * d; cv.height = r.height * d;
@@ -251,29 +252,62 @@ function sprite(shape, color, size, d) {
   return c;
 }
 function layer(a, step, st, z) {
-  const size = Math.max(st.min || 0, z * st.k), w = cv.clientWidth, h = cv.clientHeight, m = size + 2;
+  const size = Math.max(st.min || 0, z * st.k), m = size + 2, cb = CULL || {x0: 0, y0: 0, x1: cv.clientWidth, y1: cv.clientHeight};
+  const x0 = cb.x0 - m, y0 = cb.y0 - m, x1 = cb.x1 + m, y1 = cb.y1 + m;
   const {s, ox, oy, c, n} = V;
   if (st.shape === 'square' || size < 3.5) {              // мелкие точки неотличимы по форме: рисуем быстрым способом
     ctx.fillStyle = st.c;
     const hs = size * .45, sd = size * .9;
     for (let i = 0; i < a.length; i += step) {
       const x = (a[i] * c - a[i + 1] * n) * s + ox, y = oy - (a[i] * n + a[i + 1] * c) * s;
-      if (x < -m || y < -m || x > w + m || y > h + m) continue;
+      if (x < x0 || y < y0 || x > x1 || y > y1) continue;
       ctx.fillRect(x - hs, y - hs, sd, sd);
     }
     return;
   }
-  const d = window.devicePixelRatio || 1, sp = sprite(st.shape, st.c, size, d), box = sp.width / d, hb = box / 2;
+  const d = mapDpr(), sp = sprite(st.shape, st.c, size, d), box = sp.width / d, hb = box / 2;
   for (let i = 0; i < a.length; i += step) {
     const x = (a[i] * c - a[i + 1] * n) * s + ox, y = oy - (a[i] * n + a[i + 1] * c) * s;
-    if (x < -m || y < -m || x > w + m || y > h + m) continue;
+    if (x < x0 || y < y0 || x > x1 || y > y1) continue;
     ctx.drawImage(sp, x - hb, y - hb, box, box);
   }
 }
+/* Слой точек (SPS, поле, размотка, подмотка, разбивка...) и контуры DXF рисуются один раз во внеэкранный холст с запасом
+   по краям, а на экран он переносится одной картинкой. Пока карту тянут, точки не пересчитываются: картинка сдвигается
+   (а при масштабе растягивается) - десятки тысяч точек перестают тормозить карту на слабом телефоне.
+   Холст перерисовывается, когда меняются данные, вид слоёв, наклон, размер окна, а после остановки жеста - и масштаб. */
+let LC = null, CULL = null, lcTimer = 0;
+const LC_MARGIN = .3;
+const layersKey = () => ['lSps', 'lPlan', 'lRazb', 'lField', 'lPodm', 'lRazm', 'lLeft', 'lLost'].map(id => ($(id).checked ? 1 : 0)).join('') +
+  DX.layers.map(l => (l.visible ? 1 : 0) + (l.labels ? 1 : 0) + l.color).join('');
+function drawPoints(d, w, h) {
+  const mx = Math.round(w * LC_MARGIN), my = Math.round(h * LC_MARGIN), W = Math.ceil((w + 2 * mx) * d), H = Math.ceil((h + 2 * my) * d);
+  const c = LC && LC.canvas.width === W && LC.canvas.height === H ? LC.canvas : document.createElement('canvas');
+  if (c.width !== W) c.width = W;
+  if (c.height !== H) c.height = H;
+  const g = c.getContext('2d'), keep = ctx;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+  g.setTransform(d, 0, 0, d, mx * d, my * d);
+  ctx = g; CULL = {x0: -mx, y0: -my, x1: w + mx, y1: h + my};
+  try {
+    if (window.dxfDraw) dxfDraw();
+    const z = Math.max(1.3, Math.min(7, V.s * 18));
+    if ($('lSps').checked) layer(F.sps, 2, MS.sps, z);
+    if ($('lPlan').checked) layer(F.plan, 4, MS.plan, z);
+    if ($('lRazb').checked) layer(F.staked, 6, MS.razb, z);       // разбитый пикет крупнее оборудования: виден каймой вокруг него
+    if ($('lField').checked) layer(F.field, 6, MS.field, z);
+    if ($('lPodm').checked) layer(P.podm, 4, MS.podm, z);
+    if ($('lRazm').checked) layer(P.razm, 4, MS.razm, z);
+    if ($('lLeft').checked) layer(F.left, 4, MS.left, z);
+    if ($('lLost').checked) layer(F.lost, 4, MS.lost, z);
+  } finally { ctx = keep; CULL = null; }
+  LC = {canvas: c, s: V.s, c: V.c, n: V.n, ox: V.ox, oy: V.oy, mx, my, d, w, h, F, P, MS, DX: DX.layers, key: layersKey(), at: performance.now()};
+}
 function draw() {
-  const d = window.devicePixelRatio || 1;
+  const d = mapDpr(), w = cv.clientWidth, h = cv.clientHeight;
   ctx.setTransform(d, 0, 0, d, 0, 0);
-  ctx.clearRect(0, 0, cv.clientWidth, cv.clientHeight);
+  ctx.clearRect(0, 0, w, h);
+  if (!w || !h) return;                                    // карта скрыта: рисовать некуда
   if (window.tilesDraw && !F.schematic) tilesDraw(ctx, d);      // карта из интернета (js/tiles.js)
   const u = underlayNow();
   if (u && !F.schematic) {
@@ -285,19 +319,24 @@ function draw() {
     ctx.globalAlpha = 1;
     ctx.setTransform(d, 0, 0, d, 0, 0);
   }
-  if (window.dxfDraw) dxfDraw();
+  // слой точек: пересчёт или перенос готовой картинки
+  const same = LC && LC.c === V.c && LC.n === V.n && LC.d === d && LC.w === w && LC.h === h && LC.F === F && LC.P === P && LC.MS === MS &&
+    LC.DX === DX.layers && LC.key === layersKey();
+  if (!same) drawPoints(d, w, h);
+  else {
+    const k = V.s / LC.s, dx = V.ox - LC.ox, dy = V.oy - LC.oy;
+    const out = k !== 1 || Math.abs(dx) > LC.mx * .9 || Math.abs(dy) > LC.my * .9;
+    if (out && performance.now() - LC.at > 350) drawPoints(d, w, h);              // долгий жест: обновляем не чаще трёх раз в секунду
+    else if (out) { clearTimeout(lcTimer); lcTimer = setTimeout(() => { lcTimer = 0; if (LC && (V.s !== LC.s || V.ox !== LC.ox || V.oy !== LC.oy)) { drawPoints(mapDpr(), cv.clientWidth, cv.clientHeight); draw(); } }, 140); }
+  }
+  {
+    const k = V.s / LC.s;
+    ctx.drawImage(LC.canvas, V.ox - (LC.mx + LC.ox) * k, V.oy - (LC.oy + LC.my) * k, (LC.canvas.width / d) * k, (LC.canvas.height / d) * k);
+  }
   const z = Math.max(1.3, Math.min(7, V.s * 18));
-  if ($('lSps').checked) layer(F.sps, 2, MS.sps, z);
-  if ($('lPlan').checked) layer(F.plan, 4, MS.plan, z);
-  if ($('lRazb').checked) layer(F.staked, 6, MS.razb, z);       // разбитый пикет крупнее оборудования: виден каймой вокруг него
-  if ($('lField').checked) layer(F.field, 6, MS.field, z);
-  if ($('lPodm').checked) layer(P.podm, 4, MS.podm, z);
-  if ($('lRazm').checked) layer(P.razm, 4, MS.razm, z);
-  if ($('lLeft').checked) layer(F.left, 4, MS.left, z);
-  if ($('lLost').checked) layer(F.lost, 4, MS.lost, z);
   if (!B && !u && !(window.TILES && TILES.last)) {
     ctx.fillStyle = '#63636A'; ctx.font = '15px -apple-system,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('Карта появится, когда на поле будет оборудование или заполнится лист SPS', cv.clientWidth / 2, cv.clientHeight / 2);
+    ctx.fillText('Карта появится, когда на поле будет оборудование или заполнится лист SPS', w / 2, h / 2);
   }
   if (window.workDraw) workDraw(z);                         // треки, задание и найденные пикеты (js/work.js)
   if (window.geoDraw && !F.schematic) geoDraw(ctx, d);      // моё местоположение (js/geo.js)

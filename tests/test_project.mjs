@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import { loadEngine } from './load.mjs';
 
-const FILES = ['gk', 'sheets-core', 'rules', 'validation', 'config', 'store', 'svc-sheets', 'reports', 'tasks', 'zip', 'xlsx', 'importer', 'compare', 'exporter', 'underlay', 'project', 'api'];
+const FILES = ['gk', 'sheets-core', 'rules', 'validation', 'config', 'store', 'svc-sheets', 'reports', 'tasks', 'zip', 'xlsx', 'importer', 'compare', 'exporter', 'underlay', 'sqlite', 'project', 'api'];
 let bad = 0, n = 0;
 const ok = (name, cond, extra = '') => { n++; if (!cond) bad++; console.log((cond ? 'OK   ' : 'FAIL ') + name + (extra !== '' ? ' | ' + JSON.stringify(extra) : '')); };
 const eq = (name, a, b) => ok(name, JSON.stringify(a) === JSON.stringify(b), JSON.stringify(a) === JSON.stringify(b) ? '' : {got: a, want: b});

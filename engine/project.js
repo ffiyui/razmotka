@@ -64,8 +64,12 @@ globalThis.RZ = globalThis.RZ || {};
     const m = await json('manifest.json');
     if (!m || m.app !== APP) throw new ValidationError(NOT_A_PROJECT);
     if (!Number.isInteger(m.format) || m.format > FORMAT) throw new ValidationError('Файл проекта создан более новой версией программы. Обновите приложение.');
-    if (!zip.has('journal.json')) throw new ValidationError('Файл сохранён прежней версией программы для компьютера. Обновите её и сохраните файл проекта заново.');
-    const journal = await json('journal.json');
+    let journal;
+    if (zip.has('journal.json')) journal = await json('journal.json');
+    else if (zip.has('razmotka.db') && RZ.sqlite) {          // файл прежней версии программы для ПК: только база SQLite
+      try { journal = RZ.sqlite.journal(await zip.read('razmotka.db')); }
+      catch (e) { throw new ValidationError('Файл проекта повреждён: не читается база razmotka.db.'); }
+    } else throw new ValidationError('Файл проекта повреждён: в нём нет журнала.');
     if (!journal || typeof journal.sheets !== 'object') throw new ValidationError('Файл проекта повреждён: не читается журнал.');
     const settings = zip.has('settings.json') ? await json('settings.json') : null;
     const rows = {};

@@ -47,7 +47,100 @@ globalThis.RZ = globalThis.RZ || {};
     return out;
   }
 
+  /* Старые телефоны (Android WebView до версии 103) не умеют CompressionStream / DecompressionStream('deflate-raw'):
+     тогда архив читается своим распаковщиком (inflateRaw), а пишется без сжатия (store) - такой .zip читают все */
+  const HAS_INFLATE = (() => { try { new DecompressionStream('deflate-raw'); return true; } catch (e) { return false; } })();
+  const HAS_DEFLATE = (() => { try { new CompressionStream('deflate-raw'); return true; } catch (e) { return false; } })();
+
+  // ---- распаковка deflate (RFC 1951) на чистом JS: таблицы кодов Хаффмана целиком, без побитового поиска
+  const LBASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
+  const LEXT = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
+  const DBASE = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
+  const DEXT = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
+  const ORDER = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+  function huff(lengths) {
+    let max = 0;
+    for (const l of lengths) if (l > max) max = l;
+    const cnt = new Uint16Array(16), next = new Uint16Array(16);
+    for (const l of lengths) cnt[l]++;
+    cnt[0] = 0;
+    for (let b = 1, code = 0; b <= 15; b++) { code = (code + cnt[b - 1]) << 1; next[b] = code; }
+    const size = 1 << max, t = new Int32Array(size || 1);
+    for (let sym = 0; sym < lengths.length; sym++) {
+      const len = lengths[sym];
+      if (!len) continue;
+      let c = next[len]++, r = 0;
+      for (let k = 0; k < len; k++) { r = (r << 1) | (c & 1); c >>= 1; }
+      for (let j = r; j < size; j += 1 << len) t[j] = (sym << 4) | len;
+    }
+    return {t, max};
+  }
+  let FIXED = null;
+  function inflateRaw(src) {
+    let pos = 0, buf = 0, cnt = 0, op = 0;
+    let out = new Uint8Array(Math.max(1 << 16, src.length * 4));
+    const room = n => { if (op + n <= out.length) return; let m = out.length * 2; while (m < op + n) m *= 2; const o = new Uint8Array(m); o.set(out.subarray(0, op)); out = o; };
+    const fill = n => { while (cnt < n) { buf |= (pos < src.length ? src[pos] : 0) << cnt; pos++; cnt += 8; } };
+    const bits = n => { if (!n) return 0; fill(n); const v = buf & ((1 << n) - 1); buf >>>= n; cnt -= n; return v; };
+    const sym = h => { fill(h.max); const v = h.t[buf & ((1 << h.max) - 1)]; const len = v & 15; if (!len) throw new Error('zip'); buf >>>= len; cnt -= len; return v >> 4; };
+    let last = 0;
+    while (!last) {
+      if (pos > src.length + 4) throw new Error('zip');
+      last = bits(1);
+      const type = bits(2);
+      if (type === 0) {                                     // без сжатия
+        pos -= cnt >> 3; buf = 0; cnt = 0;
+        const len = src[pos] | (src[pos + 1] << 8); pos += 4;
+        if (pos + len > src.length) throw new Error('zip');
+        room(len); out.set(src.subarray(pos, pos + len), op); op += len; pos += len;
+        continue;
+      }
+      let lit, dist;
+      if (type === 1) {
+        if (!FIXED) {
+          const l = new Uint8Array(288);
+          l.fill(8, 0, 144); l.fill(9, 144, 256); l.fill(7, 256, 280); l.fill(8, 280, 288);
+          FIXED = [huff(l), huff(new Uint8Array(30).fill(5))];
+        }
+        [lit, dist] = FIXED;
+      } else if (type === 2) {
+        const hlit = bits(5) + 257, hdist = bits(5) + 1, hclen = bits(4) + 4;
+        const cl = new Uint8Array(19);
+        for (let i = 0; i < hclen; i++) cl[ORDER[i]] = bits(3);
+        const ch = huff(cl), lens = new Uint8Array(hlit + hdist);
+        for (let i = 0; i < hlit + hdist;) {
+          const c = sym(ch);
+          if (c < 16) lens[i++] = c;
+          else {
+            let rep = 0, val = 0;
+            if (c === 16) { if (!i) throw new Error('zip'); val = lens[i - 1]; rep = 3 + bits(2); }
+            else if (c === 17) rep = 3 + bits(3);
+            else rep = 11 + bits(7);
+            if (i + rep > lens.length) throw new Error('zip');
+            lens.fill(val, i, i + rep); i += rep;
+          }
+        }
+        lit = huff(lens.subarray(0, hlit)); dist = huff(lens.subarray(hlit));
+      } else throw new Error('zip');
+      for (;;) {
+        const c = sym(lit);
+        if (c < 256) { room(1); out[op++] = c; continue; }
+        if (c === 256) break;
+        const k = c - 257;
+        if (k >= 29) throw new Error('zip');
+        const len = LBASE[k] + bits(LEXT[k]), dc = sym(dist);
+        if (dc >= 30) throw new Error('zip');
+        const d = DBASE[dc] + bits(DEXT[dc]);
+        if (d > op) throw new Error('zip');
+        room(len);
+        for (let i = 0; i < len; i++, op++) out[op] = out[op - d];
+      }
+    }
+    return out.subarray(0, op);
+  }
+
   async function deflate(u8) {
+    if (!HAS_DEFLATE) return null;                          // без сжатия: write() запишет как есть
     const cs = new CompressionStream('deflate-raw');
     const done = collect(cs.readable);
     const w = cs.writable.getWriter();
@@ -136,7 +229,7 @@ globalThis.RZ = globalThis.RZ || {};
       const e = find(name);
       const src = raw(e);
       if (e.method === 0) return bytesStream(src);
-      if (e.method === 8) return bytesStream(src).pipeThrough(new DecompressionStream('deflate-raw'));
+      if (e.method === 8) return HAS_INFLATE ? bytesStream(src).pipeThrough(new DecompressionStream('deflate-raw')) : bytesStream(inflateRaw(src));
       throw new Error('zip');
     }
     async function readEntry(name) {
@@ -144,7 +237,7 @@ globalThis.RZ = globalThis.RZ || {};
       const src = raw(e);
       let out;
       if (e.method === 0) out = src;
-      else if (e.method === 8) out = await collect(stream(name), e.usize);
+      else if (e.method === 8) out = HAS_INFLATE ? await collect(stream(name), e.usize) : inflateRaw(src);
       else throw new Error('zip');
       if (out.length !== e.usize || crc32(out) !== e.crc) throw new Error('zip');
       return out;
@@ -174,7 +267,7 @@ globalThis.RZ = globalThis.RZ || {};
       let method = 0, body = data;
       if (level !== 0 && data.length > 0) {
         const z = await deflate(data);
-        if (z.length < data.length) { method = 8; body = z; }
+        if (z && z.length < data.length) { method = 8; body = z; }
       }
       if (body.length >= 0xFFFFFFFF || offset >= 0xFFFFFFFF) throw new Error('zip: слишком большой файл');
       const head = new Uint8Array(30 + nameBytes.length);
@@ -231,5 +324,5 @@ globalThis.RZ = globalThis.RZ || {};
     return out;
   }
 
-  RZ.zip = { read, write, crc32, collect, deflate };
+  RZ.zip = { read, write, crc32, collect, deflate, inflateRaw };
 })();

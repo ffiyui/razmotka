@@ -164,3 +164,5 @@ loadTheme();
 
 /* Телефон на Android: тексты подсказок про установку, геолокацию и голос у него свои */
 const ANDROID=/android/i.test(navigator.userAgent);
+/* Android не знает расширения .rzm: с фильтром по типу файл в окне выбора бывает серым и не выбирается. Проверяется содержимое */
+if(ANDROID)for(const i of document.querySelectorAll('input[type=file]'))i.removeAttribute('accept');

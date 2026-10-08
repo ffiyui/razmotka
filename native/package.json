@@ -4,6 +4,7 @@
   "description": "Оболочка Android для приложения «Контроль размотки СП10»: та же страница из папки android/ плюс фоновая геолокация, системный голос и сохранение файлов.",
   "dependencies": {
     "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
     "@capacitor/cli": "^7.0.0",
     "@capacitor/core": "^7.0.0",
     "@capacitor/filesystem": "^7.0.0",

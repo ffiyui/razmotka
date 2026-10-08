@@ -29,6 +29,18 @@ service = ('        <service android:name="com.equimaps.capacitor_background_geo
            '            android:foregroundServiceType="location"\n'
            '            tools:replace="android:foregroundServiceType" />\n')
 s = s.replace('</application>', service + '    </application>', 1)
+# «Открыть с помощью»: файлы .rzm и .zip из файлового менеджера, почты, мессенджеров (у них тип обычно octet-stream)
+view = ('            <intent-filter>\n'
+        '                <action android:name="android.intent.action.VIEW" />\n'
+        '                <category android:name="android.intent.category.DEFAULT" />\n'
+        '                <category android:name="android.intent.category.BROWSABLE" />\n'
+        '                <data android:scheme="content" />\n                <data android:scheme="file" />\n'
+        '                <data android:mimeType="application/octet-stream" />\n                <data android:mimeType="application/zip" />\n'
+        '                <data android:mimeType="application/x-zip-compressed" />\n                <data android:mimeType="application/vnd.razmotka" />\n'
+        '            </intent-filter>\n')
+i = s.index('<activity')
+j = s.index('</activity>', i)
+s = s[:j] + view + '        ' + s[j:]
 open(mf, 'w', encoding='utf-8').write(s)
 
 # ---- подпись и номер версии

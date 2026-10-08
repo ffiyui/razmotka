@@ -11,7 +11,7 @@ const NEAR = 10;                               // м: пикет считает�
 const RAD_MIN = 3, RAD_MAX = 30;                // радиус меняется ползунком на плашке задания
 const VERB = {razm: 'размотку', podm: 'подмотку', razb: 'разбивку'};
 const pad2 = n => String(n).padStart(2, '0');
-const still = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);   // без мигания
+const still = !!(window.LITE || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches));   // без мигания (и на слабых телефонах)
 const fmtM = m => (m >= 1000 ? (Math.round(m / 10) / 100).toLocaleString('ru-RU') + ' км' : nf(Math.round(m)) + ' м');
 const rangeText = (a, b) => (a === b ? String(a) : a + '–' + b);
 const meName = () => (PREFS.me && PREFS.me.name) || '';
@@ -392,7 +392,7 @@ function drawTask(z) {
   ctx.beginPath();                               // свечение вдоль диапазона
   for (let i = 0; i < p.length; i += 4) { const [x, y] = toScreen(p[i], p[i + 1]); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
   if (p.length === 4) { const [x, y] = toScreen(p[0], p[1]); ctx.lineTo(x + .01, y); }
-  ctx.shadowColor = color; ctx.shadowBlur = 18 + 10 * pulse;
+  if (!window.LITE) { ctx.shadowColor = color; ctx.shadowBlur = 18 + 10 * pulse; }   // размытая тень дорога для слабого телефона
   ctx.globalAlpha = .28 + .3 * pulse; ctx.strokeStyle = color; ctx.lineWidth = Math.max(12, z * 3.4); ctx.stroke();
   ctx.shadowBlur = 0; ctx.globalAlpha = 1;
   const r = Math.max(4.5, z * 1.1), zone = W.radius * V.s;
@@ -673,6 +673,7 @@ $('dxList').onclick = e => {
 function dxfDraw() {
   if (F.schematic || !DX.layers.length) return;
   const w = cv.clientWidth, h = cv.clientHeight, {s, ox, oy, c, n} = V, labels = [];
+  const cb = CULL || {x0: 0, y0: 0, x1: w, y1: h};          // во внеэкранный слой точек рисуется и запас по краям
   const X = (x, y) => (x * c - y * n) * s + ox, Y = (x, y) => oy - (x * n + y * c) * s;
   ctx.lineJoin = 'round';
   for (const l of DX.layers) {
@@ -681,7 +682,7 @@ function dxfDraw() {
     for (const it of l.items) {
       const b = it.bb, xs = [X(b[0], b[1]), X(b[2], b[1]), X(b[2], b[3]), X(b[0], b[3])], ys = [Y(b[0], b[1]), Y(b[2], b[1]), Y(b[2], b[3]), Y(b[0], b[3])];
       const sx0 = Math.min(...xs), sx1 = Math.max(...xs), sy0 = Math.min(...ys), sy1 = Math.max(...ys);
-      if (sx1 < 0 || sy1 < 0 || sx0 > w || sy0 > h) continue;
+      if (sx1 < cb.x0 || sy1 < cb.y0 || sx0 > cb.x1 || sy0 > cb.y1) continue;
       const size = Math.max(sx1 - sx0, sy1 - sy0), p = it.pts;
       if (it.kind === 'text') { if (l.labels && V.s > .02) labels.push([it.name, X(p[0], p[1]), Y(p[0], p[1])]); continue; }
       if (it.kind === 'point' || size < 2.5) { ctx.fillRect(X(it.c[0], it.c[1]) - 1.5, Y(it.c[0], it.c[1]) - 1.5, 3, 3); continue; }
@@ -749,7 +750,11 @@ $('prjSave').onclick = async () => {
   btn.disabled = false; btn.textContent = label;
 };
 const prjFiles = () => [...$('prjFile').files];
-$('prjFile').onchange = () => { const n = prjFiles().length; $('prjLoad').textContent = n > 1 ? 'Проверить файлы' : 'Проверить файл'; $('prjNote').textContent = n > 1 ? 'Выбрано: ' + filesWord(n) : ''; };
+$('prjFile').onchange = () => {
+  const n = prjFiles().length;
+  $('prjLoad').textContent = n > 1 ? 'Проверить файлы' : 'Проверить файл'; $('prjNote').textContent = n > 1 ? 'Выбрано: ' + filesWord(n) : '';
+  if (n && document.body.classList.contains('touch') && !$('prjLoad').disabled) $('prjLoad').click();   // на телефоне файл проверяется сразу после выбора
+};
 /* Табло изменений: по каждому виду работ - кто сколько выполнил */
 function boardHtml(ch) {
   const unit = w => (w.unit === 'пикет' ? 'пик.' : 'кан.'), done = ch.work.filter(w => w.rows);
@@ -811,12 +816,16 @@ async function projectDialog(rep) {
   body.onchange = null; $('dYes').disabled = false;
   return ok && parts.length ? {mode, parts} : null;
 }
-$('prjLoad').onclick = async () => {
-  const files = prjFiles(), btn = $('prjLoad');
+$('prjLoad').onclick = () => loadProjectFiles(prjFiles());
+/* Файлы проекта: выбранные кнопкой или открытые из другого приложения («Открыть с помощью» на Android) */
+async function loadProjectFiles(files) {
+  const btn = $('prjLoad');
   if (!files.length) return toast('Выберите файл проекта (.rzm).');
+  if (btn.disabled) return;
   const label = btn.textContent; btn.disabled = true; btn.textContent = 'Проверяю…';
   let rep;
-  try { rep = await api('/api/project/inspect', {method: 'POST', body: await packFiles(files)}); } catch (e) { rep = {error: 'Не удалось прочитать файл проекта.'}; }
+  toast('Читаю файл проекта…');
+  try { rep = await api('/api/project/inspect', {method: 'POST', body: await packFiles(files)}); } catch (e) { rep = {error: 'Не удалось прочитать файл проекта: ' + (e && e.message || e)}; }
   btn.disabled = false; btn.textContent = label;
   if (rep.error) return toast(rep.error);
   const pick = await projectDialog(rep);
@@ -845,5 +854,12 @@ $('prjLoad').onclick = async () => {
   const first = got('journal') ? (j.changes.work.find(w => w.rows) || j.changes.work.find(w => w.tasks || w.changed)) : null;
   const go = await ask('Загружено', (got('journal') ? boardHtml(j.changes) : '') + list, first ? 'Открыть лист «' + first.title + '»' : 'Хорошо', !first, true);
   if (first && go) location.hash = '#' + first.sheet;
-};
+}
 prjFill();
+
+/* Android: файл .rzm, открытый из файлового менеджера или мессенджера, сразу загружается */
+if (window.NATIVE && NATIVE.onOpenFile) NATIVE.onOpenFile(async file => {
+  try { await colorsReady; } catch (e) { /* без настроек */ }
+  if (location.hash !== '#data') { history.pushState(null, '', '#data'); await show('data'); }
+  loadProjectFiles([file]);
+});

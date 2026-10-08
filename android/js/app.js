@@ -51,3 +51,8 @@ if(/[?&]remote\b/.test(location.search)){
         .then(ok=>{if(ok&&ev){try{ev.prompt()}catch(e){}}})};
     window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();ev=e;setTimeout(hint,1500)});
     setTimeout(hint,6000)}})();
+
+/* Облегчённый вид (js/compat.js): переключатель в «Данные» → «Скорость работы»; меняется после перезапуска страницы */
+(()=>{const box=$('liteOn');if(!box)return;box.checked=!!window.LITE;
+  $('liteNote').textContent=window.LITE_AUTO?'На этом телефоне включается сам: он относится к слабым или это приложение для Android.':'';
+  box.onchange=()=>{try{localStorage.setItem('lite',box.checked?'1':'0')}catch(e){}location.reload()}})();
