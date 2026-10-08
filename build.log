@@ -1,0 +1,509 @@
+
+added 99 packages in 6s
+✔ Adding native android project in android in 42.27ms
+✔ add in 42.70ms
+✔ Copying web assets from www to android/app/src/main/assets/public in 10.16ms
+✔ Creating capacitor.config.json in android/app/src/main/assets in 434.34μs
+✔ copy android in 19.52ms
+✔ Updating Android plugins in 1.20ms
+[info] Found 6 Capacitor plugins for android:
+       @capacitor/app@7.1.2
+       @capacitor/filesystem@7.1.9
+       @capacitor/share@7.0.4
+       @capacitor-community/background-geolocation@1.2.26
+       @capacitor-community/speech-recognition@7.0.1
+       @capacitor-community/text-to-speech@6.1.0
+✔ update android in 27.79ms
+✔ Syncing Gradle in 197.17μs
+[success] android platform added!
+Follow the Developer Workflow guide to get building:
+https://capacitorjs.com/docs/basics/workflow
+✔ Copying web assets from www to android/app/src/main/assets/public in 13.27ms
+✔ Creating capacitor.config.json in android/app/src/main/assets in 695.98μs
+✔ copy android in 23.80ms
+✔ Updating Android plugins in 1.39ms
+[info] Found 6 Capacitor plugins for android:
+       @capacitor/app@7.1.2
+       @capacitor/filesystem@7.1.9
+       @capacitor/share@7.0.4
+       @capacitor-community/background-geolocation@1.2.26
+       @capacitor-community/speech-recognition@7.0.1
+       @capacitor-community/text-to-speech@6.1.0
+✔ update android in 37.16ms
+[info] Sync finished in 0.081s
+Проект Android доведён: версия 3
+Downloading https://services.gradle.org/distributions/gradle-8.11.1-all.zip
+.....................10%......................20%......................30%......................40%......................50%......................60%......................70%......................80%......................90%......................100%
+
+Welcome to Gradle 8.11.1!
+
+Here are the highlights of this release:
+ - Parallel load and store for Configuration Cache
+ - Java compilation errors at the end of the build output
+ - Consolidated report for warnings and deprecations
+
+For more details see https://docs.gradle.org/8.11.1/release-notes.html
+
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :app
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Configure project :capacitor-cordova-android-plugins
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:javaPreCompileRelease
+> Task :capacitor-android:preBuild UP-TO-DATE
+> Task :capacitor-android:preReleaseBuild UP-TO-DATE
+> Task :capacitor-app:preBuild UP-TO-DATE
+> Task :capacitor-app:preReleaseBuild UP-TO-DATE
+> Task :capacitor-app:writeReleaseAarMetadata
+> Task :capacitor-community-background-geolocation:preBuild UP-TO-DATE
+> Task :capacitor-community-background-geolocation:preReleaseBuild UP-TO-DATE
+> Task :capacitor-android:writeReleaseAarMetadata
+> Task :capacitor-community-speech-recognition:preBuild UP-TO-DATE
+> Task :capacitor-community-speech-recognition:preReleaseBuild UP-TO-DATE
+> Task :capacitor-community-background-geolocation:writeReleaseAarMetadata
+> Task :capacitor-community-text-to-speech:preBuild UP-TO-DATE
+> Task :capacitor-community-text-to-speech:preReleaseBuild UP-TO-DATE
+> Task :capacitor-community-speech-recognition:writeReleaseAarMetadata
+> Task :capacitor-cordova-android-plugins:preBuild UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:preReleaseBuild UP-TO-DATE
+> Task :capacitor-community-text-to-speech:writeReleaseAarMetadata
+> Task :capacitor-filesystem:preBuild UP-TO-DATE
+> Task :capacitor-filesystem:preReleaseBuild UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:writeReleaseAarMetadata
+> Task :capacitor-share:preBuild UP-TO-DATE
+> Task :capacitor-share:preReleaseBuild UP-TO-DATE
+> Task :capacitor-filesystem:writeReleaseAarMetadata
+> Task :capacitor-share:writeReleaseAarMetadata
+> Task :app:generateReleaseResValues
+> Task :app:checkReleaseAarMetadata
+> Task :capacitor-android:generateReleaseResValues
+> Task :capacitor-android:generateReleaseResources
+> Task :capacitor-android:packageReleaseResources
+> Task :capacitor-app:generateReleaseResValues
+> Task :capacitor-app:generateReleaseResources
+> Task :capacitor-app:packageReleaseResources
+> Task :capacitor-community-background-geolocation:generateReleaseResValues
+> Task :capacitor-community-background-geolocation:generateReleaseResources
+> Task :capacitor-community-background-geolocation:packageReleaseResources
+> Task :capacitor-community-speech-recognition:generateReleaseResValues
+> Task :capacitor-community-speech-recognition:generateReleaseResources
+> Task :capacitor-community-speech-recognition:packageReleaseResources
+> Task :capacitor-community-text-to-speech:generateReleaseResValues
+> Task :capacitor-community-text-to-speech:generateReleaseResources
+> Task :capacitor-community-text-to-speech:packageReleaseResources
+> Task :capacitor-cordova-android-plugins:generateReleaseResValues
+> Task :capacitor-cordova-android-plugins:generateReleaseResources
+> Task :capacitor-cordova-android-plugins:packageReleaseResources
+> Task :capacitor-filesystem:generateReleaseResValues
+> Task :capacitor-filesystem:generateReleaseResources
+> Task :capacitor-filesystem:packageReleaseResources
+> Task :capacitor-share:generateReleaseResValues
+> Task :capacitor-share:generateReleaseResources
+> Task :capacitor-share:packageReleaseResources
+> Task :app:mapReleaseSourceSetPaths
+> Task :app:generateReleaseResources
+> Task :app:packageReleaseResources
+> Task :app:createReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksRelease
+> Task :capacitor-android:extractDeepLinksRelease
+> Task :capacitor-app:extractDeepLinksRelease
+> Task :capacitor-android:processReleaseManifest
+> Task :capacitor-community-background-geolocation:extractDeepLinksRelease
+> Task :app:parseReleaseLocalResources
+> Task :capacitor-community-speech-recognition:extractDeepLinksRelease
+> Task :capacitor-community-background-geolocation:processReleaseManifest
+> Task :capacitor-community-text-to-speech:extractDeepLinksRelease
+> Task :capacitor-app:processReleaseManifest
+> Task :capacitor-cordova-android-plugins:extractDeepLinksRelease
+> Task :capacitor-community-speech-recognition:processReleaseManifest
+> Task :capacitor-filesystem:extractDeepLinksRelease
+> Task :capacitor-community-text-to-speech:processReleaseManifest
+> Task :capacitor-share:extractDeepLinksRelease
+> Task :capacitor-cordova-android-plugins:processReleaseManifest
+> Task :capacitor-filesystem:processReleaseManifest
+> Task :capacitor-share:processReleaseManifest
+> Task :capacitor-android:parseReleaseLocalResources
+> Task :capacitor-android:compileReleaseLibraryResources
+> Task :app:processReleaseMainManifest
+> Task :app:processReleaseManifest
+> Task :app:mergeReleaseResources
+> Task :capacitor-app:compileReleaseLibraryResources
+> Task :app:processReleaseManifestForPackage
+> Task :capacitor-app:parseReleaseLocalResources
+> Task :capacitor-community-background-geolocation:compileReleaseLibraryResources
+> Task :capacitor-community-speech-recognition:compileReleaseLibraryResources
+> Task :capacitor-community-background-geolocation:parseReleaseLocalResources
+> Task :capacitor-app:generateReleaseRFile
+> Task :capacitor-android:generateReleaseRFile
+> Task :capacitor-community-background-geolocation:generateReleaseRFile
+> Task :capacitor-community-speech-recognition:parseReleaseLocalResources
+> Task :capacitor-community-text-to-speech:compileReleaseLibraryResources
+> Task :capacitor-community-speech-recognition:generateReleaseRFile
+> Task :capacitor-community-text-to-speech:parseReleaseLocalResources
+> Task :capacitor-cordova-android-plugins:compileReleaseLibraryResources
+> Task :capacitor-community-text-to-speech:generateReleaseRFile
+> Task :capacitor-filesystem:compileReleaseLibraryResources
+> Task :capacitor-cordova-android-plugins:parseReleaseLocalResources
+> Task :capacitor-filesystem:parseReleaseLocalResources
+> Task :capacitor-share:compileReleaseLibraryResources
+> Task :capacitor-android:javaPreCompileRelease
+> Task :capacitor-filesystem:generateReleaseRFile
+> Task :capacitor-share:parseReleaseLocalResources
+> Task :capacitor-cordova-android-plugins:generateReleaseRFile
+
+> Task :capacitor-android:compileReleaseJavaWithJavac
+Note: Some input files use unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+
+> Task :capacitor-share:generateReleaseRFile
+> Task :capacitor-android:bundleLibCompileToJarRelease
+> Task :capacitor-app:javaPreCompileRelease
+> Task :capacitor-community-speech-recognition:javaPreCompileRelease
+> Task :capacitor-community-background-geolocation:javaPreCompileRelease
+> Task :app:processReleaseResources
+> Task :capacitor-app:compileReleaseJavaWithJavac
+> Task :capacitor-app:bundleLibCompileToJarRelease
+
+> Task :capacitor-community-background-geolocation:compileReleaseJavaWithJavac
+Java compiler version 21 has deprecated support for compiling with source/target version 8.
+Try one of the following options:
+    1. [Recommended] Use Java toolchain with a lower language version
+    2. Set a higher source/target version
+    3. Use a lower version of the JDK running the build (if you're not using Java toolchain)
+For more details on how to configure these settings, see https://developer.android.com/build/jdks.
+To suppress this warning, set android.javaCompile.suppressSourceTargetDeprecationWarning=true in gradle.properties.
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+3 warnings
+
+> Task :capacitor-community-background-geolocation:bundleLibCompileToJarRelease
+> Task :capacitor-community-speech-recognition:compileReleaseJavaWithJavac
+> Task :capacitor-community-speech-recognition:bundleLibCompileToJarRelease
+> Task :capacitor-community-text-to-speech:javaPreCompileRelease
+> Task :capacitor-cordova-android-plugins:javaPreCompileRelease
+
+> Task :capacitor-community-text-to-speech:compileReleaseJavaWithJavac
+Note: /home/runner/work/razmotka/razmotka/native/node_modules/@capacitor-community/text-to-speech/android/src/main/java/com/getcapacitor/community/tts/TextToSpeech.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: /home/runner/work/razmotka/razmotka/native/node_modules/@capacitor-community/text-to-speech/android/src/main/java/com/getcapacitor/community/tts/TextToSpeech.java uses unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+
+> Task :capacitor-community-text-to-speech:bundleLibCompileToJarRelease
+> Task :capacitor-cordova-android-plugins:compileReleaseJavaWithJavac NO-SOURCE
+> Task :capacitor-filesystem:checkKotlinGradlePluginConfigurationErrors
+> Task :capacitor-cordova-android-plugins:bundleLibCompileToJarRelease
+> Task :capacitor-filesystem:javaPreCompileRelease
+> Task :capacitor-share:javaPreCompileRelease
+> Task :app:extractProguardFiles
+> Task :capacitor-share:compileReleaseJavaWithJavac
+> Task :capacitor-android:processReleaseJavaRes NO-SOURCE
+> Task :capacitor-share:bundleLibCompileToJarRelease
+> Task :capacitor-android:extractProguardFiles
+> Task :capacitor-android:bundleLibRuntimeToJarRelease
+> Task :capacitor-android:generateReleaseLintModel
+> Task :capacitor-android:createFullJarRelease
+> Task :capacitor-android:prepareLintJarForPublish
+> Task :capacitor-app:bundleLibRuntimeToJarRelease
+> Task :capacitor-app:processReleaseJavaRes NO-SOURCE
+> Task :capacitor-app:createFullJarRelease
+> Task :capacitor-app:extractProguardFiles
+> Task :capacitor-app:generateReleaseLintModel
+> Task :capacitor-app:prepareLintJarForPublish
+> Task :capacitor-community-background-geolocation:bundleLibRuntimeToJarRelease
+> Task :capacitor-community-background-geolocation:processReleaseJavaRes NO-SOURCE
+> Task :capacitor-community-background-geolocation:createFullJarRelease
+> Task :capacitor-community-background-geolocation:extractProguardFiles
+> Task :capacitor-community-background-geolocation:generateReleaseLintModel
+> Task :capacitor-community-background-geolocation:prepareLintJarForPublish
+> Task :capacitor-community-speech-recognition:bundleLibRuntimeToJarRelease
+> Task :capacitor-community-speech-recognition:processReleaseJavaRes NO-SOURCE
+> Task :capacitor-community-speech-recognition:createFullJarRelease
+> Task :capacitor-community-speech-recognition:extractProguardFiles
+> Task :capacitor-community-speech-recognition:generateReleaseLintModel
+> Task :capacitor-community-speech-recognition:prepareLintJarForPublish
+> Task :capacitor-community-text-to-speech:bundleLibRuntimeToJarRelease
+> Task :capacitor-community-text-to-speech:processReleaseJavaRes NO-SOURCE
+> Task :capacitor-community-text-to-speech:createFullJarRelease
+> Task :capacitor-community-text-to-speech:extractProguardFiles
+> Task :capacitor-community-text-to-speech:generateReleaseLintModel
+> Task :capacitor-community-text-to-speech:prepareLintJarForPublish
+> Task :capacitor-cordova-android-plugins:bundleLibRuntimeToJarRelease
+> Task :capacitor-cordova-android-plugins:processReleaseJavaRes NO-SOURCE
+> Task :capacitor-cordova-android-plugins:createFullJarRelease
+> Task :capacitor-cordova-android-plugins:extractProguardFiles
+> Task :capacitor-cordova-android-plugins:generateReleaseLintModel
+> Task :capacitor-cordova-android-plugins:prepareLintJarForPublish
+> Task :capacitor-filesystem:extractProguardFiles
+> Task :capacitor-filesystem:prepareLintJarForPublish
+> Task :capacitor-share:bundleLibRuntimeToJarRelease
+> Task :capacitor-share:processReleaseJavaRes NO-SOURCE
+> Task :capacitor-share:createFullJarRelease
+> Task :capacitor-share:extractProguardFiles
+> Task :capacitor-share:generateReleaseLintModel
+> Task :capacitor-share:prepareLintJarForPublish
+> Task :capacitor-app:mergeReleaseJniLibFolders
+> Task :capacitor-app:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-app:stripReleaseDebugSymbols NO-SOURCE
+> Task :capacitor-app:copyReleaseJniLibsProjectAndLocalJars
+> Task :capacitor-app:extractDeepLinksForAarRelease
+> Task :capacitor-app:extractReleaseAnnotations
+> Task :capacitor-app:mergeReleaseGeneratedProguardFiles
+> Task :capacitor-app:mergeReleaseConsumerProguardFiles
+> Task :capacitor-app:mergeReleaseShaders
+> Task :capacitor-app:compileReleaseShaders NO-SOURCE
+> Task :capacitor-app:generateReleaseAssets UP-TO-DATE
+> Task :capacitor-app:packageReleaseAssets
+> Task :capacitor-app:prepareReleaseArtProfile
+> Task :capacitor-filesystem:mergeReleaseJniLibFolders
+> Task :capacitor-filesystem:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-filesystem:stripReleaseDebugSymbols NO-SOURCE
+> Task :capacitor-filesystem:copyReleaseJniLibsProjectAndLocalJars
+> Task :capacitor-filesystem:extractDeepLinksForAarRelease
+> Task :capacitor-filesystem:mergeReleaseShaders
+> Task :capacitor-filesystem:compileReleaseShaders NO-SOURCE
+> Task :capacitor-filesystem:generateReleaseAssets UP-TO-DATE
+> Task :capacitor-filesystem:packageReleaseAssets
+> Task :capacitor-filesystem:prepareReleaseArtProfile
+> Task :capacitor-share:mergeReleaseJniLibFolders
+> Task :capacitor-share:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-share:stripReleaseDebugSymbols NO-SOURCE
+> Task :capacitor-share:extractDeepLinksForAarRelease
+> Task :capacitor-share:copyReleaseJniLibsProjectAndLocalJars
+> Task :capacitor-share:extractReleaseAnnotations
+> Task :capacitor-app:mergeReleaseJavaResource
+> Task :capacitor-share:mergeReleaseGeneratedProguardFiles
+> Task :capacitor-app:syncReleaseLibJars
+> Task :capacitor-app:bundleReleaseLocalLintAar
+> Task :capacitor-share:mergeReleaseConsumerProguardFiles
+> Task :capacitor-share:mergeReleaseShaders
+> Task :capacitor-share:compileReleaseShaders NO-SOURCE
+> Task :capacitor-share:generateReleaseAssets UP-TO-DATE
+> Task :capacitor-share:packageReleaseAssets
+> Task :capacitor-share:prepareReleaseArtProfile
+> Task :capacitor-share:mergeReleaseJavaResource
+> Task :capacitor-share:syncReleaseLibJars
+> Task :capacitor-share:bundleReleaseLocalLintAar
+> Task :capacitor-community-background-geolocation:mergeReleaseJniLibFolders
+> Task :capacitor-community-background-geolocation:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-community-background-geolocation:stripReleaseDebugSymbols NO-SOURCE
+> Task :capacitor-community-background-geolocation:copyReleaseJniLibsProjectAndLocalJars
+> Task :capacitor-community-background-geolocation:extractDeepLinksForAarRelease
+> Task :capacitor-community-background-geolocation:extractReleaseAnnotations
+> Task :capacitor-community-background-geolocation:mergeReleaseGeneratedProguardFiles
+> Task :capacitor-community-background-geolocation:mergeReleaseConsumerProguardFiles
+> Task :capacitor-community-background-geolocation:mergeReleaseShaders
+> Task :capacitor-community-background-geolocation:compileReleaseShaders NO-SOURCE
+> Task :capacitor-community-background-geolocation:generateReleaseAssets UP-TO-DATE
+> Task :capacitor-community-background-geolocation:packageReleaseAssets
+> Task :capacitor-community-background-geolocation:prepareReleaseArtProfile
+> Task :capacitor-community-speech-recognition:mergeReleaseJniLibFolders
+> Task :capacitor-community-background-geolocation:mergeReleaseJavaResource
+> Task :capacitor-community-speech-recognition:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-community-background-geolocation:syncReleaseLibJars
+> Task :capacitor-community-background-geolocation:bundleReleaseLocalLintAar
+> Task :capacitor-community-speech-recognition:stripReleaseDebugSymbols NO-SOURCE
+> Task :capacitor-community-speech-recognition:copyReleaseJniLibsProjectAndLocalJars
+> Task :capacitor-community-speech-recognition:extractDeepLinksForAarRelease
+> Task :capacitor-community-speech-recognition:extractReleaseAnnotations
+> Task :capacitor-community-speech-recognition:mergeReleaseGeneratedProguardFiles
+> Task :capacitor-community-speech-recognition:mergeReleaseConsumerProguardFiles
+> Task :capacitor-community-speech-recognition:mergeReleaseShaders
+> Task :capacitor-community-speech-recognition:compileReleaseShaders NO-SOURCE
+> Task :capacitor-community-speech-recognition:generateReleaseAssets UP-TO-DATE
+> Task :capacitor-community-speech-recognition:packageReleaseAssets
+> Task :capacitor-community-speech-recognition:prepareReleaseArtProfile
+> Task :capacitor-community-speech-recognition:mergeReleaseJavaResource
+> Task :capacitor-community-text-to-speech:mergeReleaseJniLibFolders
+> Task :capacitor-community-speech-recognition:syncReleaseLibJars
+> Task :capacitor-community-speech-recognition:bundleReleaseLocalLintAar
+> Task :capacitor-community-text-to-speech:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-community-text-to-speech:stripReleaseDebugSymbols NO-SOURCE
+> Task :capacitor-community-text-to-speech:copyReleaseJniLibsProjectAndLocalJars
+> Task :capacitor-community-text-to-speech:extractDeepLinksForAarRelease
+> Task :capacitor-community-text-to-speech:extractReleaseAnnotations
+> Task :capacitor-community-text-to-speech:mergeReleaseGeneratedProguardFiles
+> Task :capacitor-community-text-to-speech:mergeReleaseConsumerProguardFiles
+> Task :capacitor-community-text-to-speech:mergeReleaseShaders
+> Task :capacitor-community-text-to-speech:compileReleaseShaders NO-SOURCE
+> Task :capacitor-community-text-to-speech:generateReleaseAssets UP-TO-DATE
+> Task :capacitor-community-text-to-speech:packageReleaseAssets
+> Task :capacitor-community-text-to-speech:prepareReleaseArtProfile
+> Task :capacitor-community-text-to-speech:mergeReleaseJavaResource
+> Task :capacitor-android:mergeReleaseJniLibFolders
+> Task :capacitor-community-text-to-speech:syncReleaseLibJars
+> Task :capacitor-community-text-to-speech:bundleReleaseLocalLintAar
+> Task :capacitor-android:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-android:stripReleaseDebugSymbols NO-SOURCE
+> Task :capacitor-android:extractDeepLinksForAarRelease
+> Task :capacitor-android:copyReleaseJniLibsProjectAndLocalJars
+> Task :capacitor-android:extractReleaseAnnotations
+> Task :capacitor-android:mergeReleaseGeneratedProguardFiles
+> Task :capacitor-android:mergeReleaseConsumerProguardFiles
+> Task :capacitor-android:mergeReleaseShaders
+> Task :capacitor-android:compileReleaseShaders NO-SOURCE
+> Task :capacitor-android:generateReleaseAssets UP-TO-DATE
+> Task :capacitor-android:packageReleaseAssets
+> Task :capacitor-android:prepareReleaseArtProfile
+> Task :capacitor-android:mergeReleaseJavaResource
+> Task :capacitor-cordova-android-plugins:mergeReleaseJniLibFolders
+> Task :capacitor-android:syncReleaseLibJars
+> Task :capacitor-android:bundleReleaseLocalLintAar
+> Task :capacitor-cordova-android-plugins:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-cordova-android-plugins:stripReleaseDebugSymbols NO-SOURCE
+> Task :capacitor-cordova-android-plugins:copyReleaseJniLibsProjectAndLocalJars
+> Task :capacitor-cordova-android-plugins:extractDeepLinksForAarRelease
+> Task :capacitor-cordova-android-plugins:extractReleaseAnnotations
+> Task :capacitor-cordova-android-plugins:mergeReleaseGeneratedProguardFiles
+> Task :capacitor-cordova-android-plugins:mergeReleaseConsumerProguardFiles
+> Task :capacitor-cordova-android-plugins:mergeReleaseShaders
+> Task :capacitor-cordova-android-plugins:compileReleaseShaders NO-SOURCE
+> Task :capacitor-cordova-android-plugins:generateReleaseAssets UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:packageReleaseAssets
+> Task :capacitor-cordova-android-plugins:prepareReleaseArtProfile
+> Task :capacitor-cordova-android-plugins:mergeReleaseJavaResource
+> Task :capacitor-cordova-android-plugins:syncReleaseLibJars
+> Task :capacitor-cordova-android-plugins:bundleReleaseLocalLintAar
+> Task :capacitor-android:writeReleaseLintModelMetadata
+> Task :capacitor-app:writeReleaseLintModelMetadata
+> Task :capacitor-community-background-geolocation:writeReleaseLintModelMetadata
+> Task :capacitor-community-speech-recognition:writeReleaseLintModelMetadata
+> Task :capacitor-community-text-to-speech:writeReleaseLintModelMetadata
+> Task :capacitor-cordova-android-plugins:writeReleaseLintModelMetadata
+> Task :capacitor-filesystem:writeReleaseLintModelMetadata
+> Task :capacitor-share:writeReleaseLintModelMetadata
+> Task :capacitor-android:generateReleaseLintVitalModel
+> Task :capacitor-app:generateReleaseLintVitalModel
+> Task :capacitor-community-background-geolocation:generateReleaseLintVitalModel
+> Task :capacitor-community-speech-recognition:generateReleaseLintVitalModel
+> Task :capacitor-community-text-to-speech:generateReleaseLintVitalModel
+> Task :capacitor-cordova-android-plugins:generateReleaseLintVitalModel
+> Task :capacitor-share:generateReleaseLintVitalModel
+> Task :app:mergeReleaseJniLibFolders
+> Task :capacitor-android:copyReleaseJniLibsProjectOnly
+> Task :capacitor-app:copyReleaseJniLibsProjectOnly
+> Task :capacitor-community-background-geolocation:copyReleaseJniLibsProjectOnly
+> Task :capacitor-community-speech-recognition:copyReleaseJniLibsProjectOnly
+> Task :capacitor-community-text-to-speech:copyReleaseJniLibsProjectOnly
+> Task :capacitor-cordova-android-plugins:copyReleaseJniLibsProjectOnly
+> Task :capacitor-filesystem:copyReleaseJniLibsProjectOnly
+> Task :capacitor-share:copyReleaseJniLibsProjectOnly
+> Task :app:mergeReleaseNativeLibs NO-SOURCE
+> Task :app:stripReleaseDebugSymbols NO-SOURCE
+> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
+> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkReleaseDuplicateClasses
+> Task :app:desugarReleaseFileDependencies
+> Task :app:mergeReleaseStartupProfile
+
+> Task :capacitor-filesystem:compileReleaseKotlin
+w: file:///home/runner/work/razmotka/razmotka/native/node_modules/@capacitor/filesystem/android/src/main/kotlin/com/capacitorjs/plugins/filesystem/FilesystemPlugin.kt:335:31 'downloadFile(PluginCall): Unit' is deprecated. Use @capacitor/file-transfer plugin instead
+w: file:///home/runner/work/razmotka/razmotka/native/node_modules/@capacitor/filesystem/android/src/main/kotlin/com/capacitorjs/plugins/filesystem/LegacyFilesystemImplementation.kt:66:29 Type mismatch: inferred type is String? but String was expected
+w: file:///home/runner/work/razmotka/razmotka/native/node_modules/@capacitor/filesystem/android/src/main/kotlin/com/capacitorjs/plugins/filesystem/LegacyFilesystemImplementation.kt:143:25 Unnecessary non-null assertion (!!) on a non-null receiver of type Boolean
+w: file:///home/runner/work/razmotka/razmotka/native/node_modules/@capacitor/filesystem/android/src/main/kotlin/com/capacitorjs/plugins/filesystem/LegacyFilesystemImplementation.kt:152:21 Unnecessary non-null assertion (!!) on a non-null receiver of type Boolean
+
+> Task :capacitor-android:lintVitalAnalyzeRelease
+> Task :capacitor-app:lintVitalAnalyzeRelease
+> Task :app:mergeExtDexRelease
+> Task :capacitor-filesystem:compileReleaseJavaWithJavac NO-SOURCE
+> Task :capacitor-filesystem:bundleLibCompileToJarRelease
+> Task :capacitor-filesystem:bundleLibRuntimeToJarRelease
+> Task :capacitor-filesystem:processReleaseJavaRes
+> Task :app:compileReleaseJavaWithJavac
+> Task :capacitor-filesystem:createFullJarRelease
+> Task :capacitor-filesystem:generateReleaseLintModel
+> Task :app:generateReleaseLintVitalReportModel
+> Task :capacitor-filesystem:extractReleaseAnnotations
+> Task :capacitor-filesystem:mergeReleaseGeneratedProguardFiles
+> Task :capacitor-filesystem:mergeReleaseConsumerProguardFiles
+> Task :capacitor-filesystem:mergeReleaseJavaResource
+> Task :capacitor-filesystem:syncReleaseLibJars
+> Task :capacitor-filesystem:bundleReleaseLocalLintAar
+> Task :capacitor-filesystem:generateReleaseLintVitalModel
+> Task :app:dexBuilderRelease
+> Task :capacitor-community-speech-recognition:lintVitalAnalyzeRelease
+> Task :app:mergeReleaseArtProfile
+> Task :capacitor-community-background-geolocation:lintVitalAnalyzeRelease
+> Task :app:mergeReleaseGlobalSynthetics
+> Task :app:mergeReleaseShaders
+> Task :app:compileReleaseShaders NO-SOURCE
+> Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app:mergeReleaseAssets
+> Task :capacitor-community-text-to-speech:lintVitalAnalyzeRelease
+> Task :capacitor-cordova-android-plugins:lintVitalAnalyzeRelease
+> Task :app:compressReleaseAssets
+> Task :app:extractReleaseVersionControlInfo
+> Task :app:processReleaseJavaRes NO-SOURCE
+> Task :capacitor-share:lintVitalAnalyzeRelease
+> Task :app:mergeReleaseJavaResource
+> Task :app:collectReleaseDependencies
+> Task :app:sdkReleaseDependencyData
+> Task :app:validateSigningRelease
+> Task :app:writeReleaseAppMetadata
+> Task :app:writeReleaseSigningConfigVersions
+> Task :app:optimizeReleaseResources
+> Task :capacitor-android:bundleReleaseAar
+> Task :capacitor-android:mapReleaseSourceSetPaths
+> Task :app:mergeDexRelease
+> Task :capacitor-android:mergeReleaseResources
+> Task :capacitor-app:bundleReleaseAar
+> Task :capacitor-app:mapReleaseSourceSetPaths
+> Task :capacitor-app:mergeReleaseResources
+> Task :app:compileReleaseArtProfile
+> Task :capacitor-android:verifyReleaseResources
+> Task :capacitor-android:assembleRelease
+> Task :capacitor-community-background-geolocation:bundleReleaseAar
+> Task :capacitor-community-background-geolocation:mapReleaseSourceSetPaths
+> Task :capacitor-app:verifyReleaseResources
+> Task :capacitor-community-background-geolocation:mergeReleaseResources
+> Task :capacitor-app:assembleRelease
+> Task :capacitor-community-speech-recognition:bundleReleaseAar
+> Task :capacitor-community-speech-recognition:mapReleaseSourceSetPaths
+> Task :capacitor-community-speech-recognition:mergeReleaseResources
+> Task :app:packageRelease
+> Task :app:createReleaseApkListingFileRedirect
+> Task :capacitor-community-text-to-speech:bundleReleaseAar
+> Task :capacitor-community-text-to-speech:mapReleaseSourceSetPaths
+> Task :capacitor-community-background-geolocation:verifyReleaseResources
+> Task :capacitor-community-text-to-speech:mergeReleaseResources
+> Task :capacitor-community-background-geolocation:assembleRelease
+> Task :capacitor-cordova-android-plugins:bundleReleaseAar
+> Task :capacitor-community-speech-recognition:verifyReleaseResources
+> Task :capacitor-cordova-android-plugins:mapReleaseSourceSetPaths
+> Task :capacitor-community-speech-recognition:assembleRelease
+> Task :capacitor-community-text-to-speech:verifyReleaseResources
+> Task :capacitor-cordova-android-plugins:mergeReleaseResources
+> Task :capacitor-community-text-to-speech:assembleRelease
+> Task :capacitor-filesystem:bundleReleaseAar
+> Task :capacitor-filesystem:mapReleaseSourceSetPaths
+> Task :capacitor-filesystem:mergeReleaseResources
+> Task :capacitor-share:bundleReleaseAar
+> Task :capacitor-share:mapReleaseSourceSetPaths
+> Task :capacitor-filesystem:lintVitalAnalyzeRelease
+> Task :capacitor-cordova-android-plugins:verifyReleaseResources
+> Task :capacitor-share:mergeReleaseResources
+> Task :capacitor-cordova-android-plugins:assembleRelease
+> Task :capacitor-filesystem:verifyReleaseResources
+> Task :capacitor-filesystem:assembleRelease
+> Task :capacitor-share:verifyReleaseResources
+> Task :capacitor-share:assembleRelease
+> Task :app:lintVitalAnalyzeRelease
+> Task :app:lintVitalReportRelease
+> Task :app:lintVitalRelease
+> Task :app:assembleRelease
+[Incubating] Problems report is available at: file:///home/runner/work/razmotka/razmotka/native/android/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 2m 42s
+340 actionable tasks: 340 executed
+total 4584
+drwxr-xr-x 2 runner runner    4096 Oct  8 13:30 .
+drwxr-xr-x 7 runner runner    4096 Oct  8 13:30 ..
+-rw-r--r-- 1 runner runner 4684767 Oct  8 13:30 razmotka-sp10.apk
