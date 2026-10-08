@@ -12,6 +12,8 @@ import sys
 from html.parser import HTMLParser
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+if len(sys.argv) > 1:                                     # другая папка с приложением, например android/
+    ROOT = os.path.abspath(sys.argv[1])
 LINK_RELS = {'stylesheet', 'manifest', 'icon', 'apple-touch-icon', 'shortcut icon', 'preload', 'modulepreload'}
 
 

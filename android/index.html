@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#E6EAF3">
+<meta name="color-scheme" content="light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Размотка СП10">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<title>Контроль размотки</title>
+<link rel="stylesheet" href="css/app.css">
+</head><body>
+<div class="splash" id="splash">
+  <div class="sp-card">
+    <div class="sp-art" id="spArt"></div>
+    <div class="sp-body">
+      <div class="sp-title" id="spTitle"></div>
+      <div class="sp-sub" id="spSub">Журнал учёта оборудования и работ бригад ГФО</div>
+      <div class="sp-foot"><span class="sp-author">Автор: Мигранов Э.А.</span><span class="sp-status" id="spStatus">Запуск</span></div>
+      <div class="sp-bar"><i id="spBar"></i></div>
+    </div>
+  </div>
+</div>
+<script src="js/splash.js"></script>
+<button class="icon-btn dots" id="navShow" title="Показать меню" aria-label="Показать меню">⋯</button>
+<div class="scrim" id="navScrim"></div>
+<div class="app">
+<nav>
+  <button class="icon-btn" id="navHide" title="Скрыть меню" aria-label="Скрыть меню">‹</button>
+  <div id="navlist"></div>
+  <div class="foot"><div id="foot"></div><button class="btn small" id="quit" style="margin-top:10px">Завершить работу</button><button class="btn small" id="navreset" style="margin-top:6px;display:none">Вернуть меню как было</button></div>
+</nav>
+<main>
+
+<section class="page" id="p-field">
+  <h1 id="fieldTitle">Поле</h1>
+  <p class="lead" id="fieldLead"></p>
+  <div class="card strip strip-del">
+    <span class="strip-title">Удаление размотки и подмотки</span>
+    <label for="cFrom">с</label><input type="date" id="cFrom">
+    <label for="cTo">по</label><input type="date" id="cTo">
+    <label class="tick"><input type="checkbox" id="cP" checked> подмотку</label>
+    <label class="tick"><input type="checkbox" id="cR" checked> размотку</label>
+    <button class="btn small danger" id="cGo">Удалить за период</button>
+    <span class="strip-space"></span>
+    <button class="btn small danger" id="cAll">Удалить всю размотку и подмотку</button>
+  </div>
+  <div class="card strip">
+    <span class="strip-title">Период на карте</span>
+    <label for="mFrom">с</label><input type="date" id="mFrom">
+    <label for="mTo">по</label><input type="date" id="mTo">
+    <span class="strip-sep"></span>
+    <span id="mPresets" class="strip-set"><button class="btn small" data-range="day" title="Последний день работ">День</button><button class="btn small" data-range="week" title="Последние 7 дней работ">Неделя</button><button class="btn small" data-range="month" title="Последние 30 дней работ">Месяц</button><button class="btn small" data-range="all" title="С первой записи по последнюю">Весь период</button></span>
+    <span class="strip-space"></span>
+    <span class="strip-note" id="mCount"></span>
+  </div>
+  <div class="fieldwrap" id="fieldWrap">
+    <div class="scrim" id="sideScrim"></div>
+    <div class="card map" id="mapBox">
+      <canvas id="map"></canvas>
+      <div class="maptools">
+        <button class="icon-btn dots" id="tRec" title="Записать трек своего движения" aria-label="Записать трек" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 14.5c2.5 0 2-4 4.5-4s2 2.5 4 2.5 2.5-3.5 2.5-6"/><circle cx="3.5" cy="14.5" r="1.3" fill="currentColor"/><circle cx="14.5" cy="5.2" r="1.8"/></svg></button>
+        <button class="icon-btn dots" id="mFind" title="Найти пикеты на карте" aria-label="Найти пикеты на карте" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="7.8" cy="7.8" r="4.8"/><path d="M11.6 11.6 15.4 15.4"/></svg></button>
+        <button class="icon-btn dots" id="mFull" title="На весь экран" aria-label="На весь экран" aria-pressed="false"><svg class="i-full" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="i-out" d="M3 7V3h4M15 7V3h-4M3 11v4h4M15 11v4h-4"/><path class="i-in" d="M7 3v4H3M11 3v4h4M7 15v-4H3M11 15v-4h4"/></svg></button>
+        <button class="icon-btn dots" id="gBtn" title="Моё местоположение" aria-label="Моё местоположение" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="3.2"/><path d="M9 1.5v3M9 13.5v3M1.5 9h3M13.5 9h3"/></svg></button>
+        <button class="icon-btn dots" id="sideShow" title="Показать панель инструментов" aria-label="Показать панель инструментов">⋯</button>
+      </div>
+      <button class="north" id="mNorth" title="Стрелка показывает на север. Щелчок — вернуть север вверх" aria-label="Вернуть север вверх" hidden><svg width="22" height="22" viewBox="-11 -11 22 22" aria-hidden="true"><path d="M0-9 4.6 6 0 3.2-4.6 6Z" fill="currentColor"/></svg><span>С</span></button>
+      <form class="findbox" id="findBox" hidden autocomplete="off">
+        <div id="findRows"></div>
+        <div class="find-foot"><span id="findNote"></span><button type="button" class="find-link" id="findClear" hidden>Сбросить</button></div>
+      </form>
+      <div class="taskbar" id="taskBar" hidden>
+        <div class="tk-head"><b id="tkTitle"></b><button type="button" class="icon-btn" id="tkClose" title="Убрать задание с карты" aria-label="Убрать задание с карты">✕</button></div>
+        <div class="tk-sub" id="tkSub"></div>
+        <div class="tk-prog" id="tkProg" hidden><i id="tkFill"></i></div>
+        <div class="tk-acts"><button type="button" class="btn small main" id="tkGo"></button><button type="button" class="btn small" id="tkPause" hidden>Пауза</button><button type="button" class="btn small" id="tkEnd" hidden></button></div>
+        <button type="button" class="btn small tk-snap" id="tkSnap" hidden>Снять пикет здесь</button>
+      </div>
+      <div class="recnote" id="recNote" hidden></div>
+      <div class="mapnote" id="mapNote"></div>
+      <div class="tip" id="tip"></div>
+    </div>
+    <div class="card side" id="mapSide">
+      <div class="side-head"><span>Инструменты</span><button class="icon-btn" id="sideHide" title="Скрыть панель" aria-label="Скрыть панель">›</button></div>
+      <div class="side-title">Слои</div>
+      <div class="legend">
+        <label id="lgSps"><input type="checkbox" id="lSps" checked><button type="button" class="sw" data-layer="sps" title="Форма, размер и цвет точек"></button>Пикеты SPS</label>
+        <label><input type="checkbox" id="lField" checked><button type="button" class="sw" data-layer="field" title="Форма, размер и цвет точек"></button>Лежит на поле</label>
+        <label><input type="checkbox" id="lRazm"><button type="button" class="sw" data-layer="razm" title="Форма, размер и цвет точек"></button>Размотано за период</label>
+        <label><input type="checkbox" id="lPodm"><button type="button" class="sw" data-layer="podm" title="Форма, размер и цвет точек"></button>Подмотано за период</label>
+        <label><input type="checkbox" id="lRazb" checked><button type="button" class="sw" data-layer="razb" title="Форма, размер и цвет точек"></button>Разбито</label>
+        <label id="lgPlan" style="display:none"><input type="checkbox" id="lPlan" checked><button type="button" class="sw" data-layer="plan" title="Форма, размер и цвет точек"></button>Задания на разбивку</label>
+        <label><input type="checkbox" id="lTracks" checked>Треки, отмеченные во вкладке «Треки»</label>
+        <label id="lgLeft" style="display:none"><input type="checkbox" id="lLeft" checked><button type="button" class="sw" data-layer="left" title="Форма, размер и цвет точек"></button>Оставленное оборудование</label>
+        <label id="lgLost" style="display:none"><input type="checkbox" id="lLost" checked><button type="button" class="sw" data-layer="lost" title="Форма, размер и цвет точек"></button>Утерянное оборудование</label>
+      </div>
+      <button class="btn small" id="swReset" hidden>Вид слоёв по умолчанию</button>
+      <div id="dxBox" hidden><div class="side-title">Контуры DXF <span class="side-n" id="dxCount"></span></div>
+      <div class="ulist dxlist" id="dxList"></div></div>
+      <div class="side-title">Вид</div>
+      <label class="range" for="mTilt">Наклон<output id="mTiltOut" for="mTilt">0°</output></label>
+      <input type="range" id="mTilt" class="wide-range" min="-180" max="180" step="1" value="0" aria-label="Наклон карты, градусы">
+      <button class="btn small" id="mLevel" title="Повернуть карту так, чтобы профили шли горизонтально">Выровнять по горизонтали</button>
+      <button class="btn small" id="mFit" title="Уместить всё поле в окно, наклон не меняется">Показать всё</button>
+      <button class="btn small" id="mReset" title="Убрать наклон и показать всё поле">Вид по умолчанию</button>
+      <button class="btn small" id="mFullSide">На весь экран</button>
+      <div class="side-title">Я на карте</div>
+      <div class="gps" id="gps">
+        <button class="btn small" id="gLocate" title="Показать моё местоположение по GPS">Показать меня</button>
+        <button class="btn small" id="gFollow" aria-pressed="false" title="Карта следует за вами" hidden>Следить</button>
+        <label class="tick" id="gCourseRow" hidden><input type="checkbox" id="gCourse"> карта по ходу движения</label>
+        <div class="gstat" id="gStat"></div>
+        <button class="btn small" id="gCalib" hidden title="Встаньте на пикет с известным номером: карта сдвинется так, чтобы вы оказались на нём">Я стою на пикете…</button>
+        <button class="btn small" id="gCalibReset" hidden>Сбросить привязку</button>
+      </div>
+      <div class="side-title">Карта из интернета</div>
+      <select id="tSrc" aria-label="Карта-подложка из интернета"></select>
+      <label class="range" id="tAlphaRow" hidden>Прозрачность<input type="range" id="tAlpha" min="0.1" max="1" step="0.05" value="1"></label>
+      <button class="btn small" id="tSave" hidden>Сохранить участок для работы без сети</button>
+      <div class="gstat" id="tStat"></div>
+      <button class="btn small" id="tClear" hidden>Удалить сохранённые карты</button>
+      <div class="side-title">Подложки из файла</div>
+      <div class="ulist" id="uList"></div>
+      <label class="range" id="uAlphaRow" hidden>Прозрачность<input type="range" id="uAlpha" min="0.1" max="1" step="0.05" value="0.7"></label>
+      <button class="btn small" id="uBtn">Добавить подложку</button>
+    </div>
+  </div>
+  <h2>По линиям</h2>
+  <div class="card pad"><div class="cols" id="lines"></div></div>
+</section>
+
+<section class="page sheet" id="p-razm"></section>
+<section class="page sheet" id="p-podm"></section>
+<section class="page sheet" id="p-oo"></section>
+<section class="page sheet" id="p-snake"></section>
+<section class="page sheet" id="p-info"></section>
+<section class="page sheet" id="p-workers"></section>
+<section class="page sheet" id="p-razb"></section>
+<section class="page sheet" id="p-topo"></section>
+<section class="page sheet" id="p-sps"></section>
+
+<section class="page" id="p-tracks">
+  <h1>Треки</h1>
+  <p class="lead">Записанный путь. Запись включается кнопкой с линией на карте («Поле»). Отмеченные галочкой треки видны на карте; их можно положить в файл проекта.</p>
+  <div class="card" id="trList"></div>
+</section>
+
+<section class="page" id="p-stats">
+  <h1>Учёт</h1>
+  <div class="row" style="margin:14px 0 20px">
+    <div><label for="sFrom">С</label><input type="date" id="sFrom"></div>
+    <div><label for="sTo">По</label><input type="date" id="sTo"></div>
+    <button class="btn" id="sAll">Весь период</button><button class="btn" id="s30">Последние 30 дней</button>
+  </div>
+  <div class="figures" id="sFig"></div>
+  <div id="sStakeBox" hidden><h2>Разбивка по топографам</h2><div class="card scroll" id="sStake"></div></div>
+  <div class="card pad"><div style="margin-bottom:8px;font-size:13.5px;color:var(--muted)"><span class="dot c-razm"></span>Размотка <span class="dot c-podm" style="margin-left:14px"></span>Подмотка, каналов в день</div><div id="chart"></div></div>
+  <div class="grid2">
+    <div><h2>По старшим</h2><div class="card scroll" id="sWorkers"></div></div>
+    <div><h2>По линиям</h2><div class="card scroll" id="sLines"></div></div>
+  </div>
+</section>
+
+<section class="page" id="p-check">
+  <h1>Проверка</h1>
+  <p class="lead">Сверка итогов и места, где журнал противоречит сам себе: разматывают пикет, на котором оборудование уже лежит, или подматывают пикет, на котором ничего не числится.</p>
+  <div class="figures" id="checkFig"></div>
+  <p class="lead" id="checkWhy"></p>
+  <div class="card" id="checkBox"></div>
+  <h2>Сверка с книгой Excel</h2>
+  <div class="card pad">
+    <p style="margin-top:0;max-width:74ch;color:var(--muted);font-size:14px">Если число на поле в программе и в книге «Контроль размотки» разное, выберите книгу: программа сравнит оборудование на поле пикет за пикетом и записи журнала строка за строкой и назовёт причину каждого расхождения. Данные при этом не меняются.</p>
+    <input type="file" id="cmpFile" accept=".xlsm,.xlsx"> <button class="btn main" id="cmpGo">Сверить</button>
+  </div>
+  <div id="cmpOut"></div>
+</section>
+
+<section class="page" id="p-data">
+  <h1>Данные</h1>
+  <p class="lead">Файл проекта для обмена с компьютером, загрузка из Excel, выгрузки и правила учёта.</p>
+  <h2>Файл проекта</h2>
+  <div class="dgrid">
+    <div class="card dcard"><h3>Сохранить файл проекта</h3>
+      <p>Файл .rzm для компьютера начальника отряда или другого телефона. Журнал с заданиями и выполненной работой кладётся всегда, остальное — по галочкам.</p>
+      <div class="dctl"><div class="parts" id="prjParts">
+          <label class="tick"><input type="checkbox" checked disabled><span>журнал: размотка, подмотка, разбивка, задания</span></label>
+          <label class="tick"><input type="checkbox" data-part="tracks" checked><span>треки</span></label>
+          <label class="tick"><input type="checkbox" data-part="sps"><span>лист SPS (координаты пикетов)</span></label>
+          <label class="tick"><input type="checkbox" data-part="dxf"><span>контуры DXF</span></label>
+          <label class="tick"><input type="checkbox" data-part="settings"><span>правила учёта и система координат</span></label>
+          <label class="tick"><input type="checkbox" id="prjOnly"><span>только задания:</span> <select id="prjTasks" aria-label="Вид работ"><option value="all">все виды работ</option><option value="razm">размотка</option><option value="podm">подмотка</option><option value="razb">разбивка</option></select></label>
+        </div>
+        <div style="width:100%"><label for="prjName">Имя файла</label><input id="prjName" class="wide" maxlength="100" style="width:100%" placeholder="Например: Дульцев К.А."></div>
+        <div class="dnote" id="prjWho"></div></div>
+      <div class="dact"><button class="btn main" id="prjSave">Сохранить файл проекта</button></div></div>
+    <div class="card dcard"><h3>Загрузить файл проекта</h3>
+      <p>Файл .rzm от начальника отряда или с другого устройства. Сначала программа покажет, что в файле нового и кто это выполнил, и спросит, что загрузить. До вашего согласия проект не меняется.</p>
+      <div class="dctl"><input type="file" id="prjFile" accept=".rzm,.zip,application/octet-stream,application/zip" multiple></div>
+      <div class="dact"><button class="btn main" id="prjLoad">Проверить файл</button><span class="dnote" id="prjNote"></span></div></div>
+  </div>
+  <h2>Загрузка</h2>
+  <div class="dgrid">
+    <div class="card dcard"><h3>Журнал из Excel</h3>
+      <p>Файл вида «Журнал_ГФО_31_07.xlsx» с листами Размотка, Подмотка, Оставленное оборудование, Змейки и вылеты, Общая информация и ID старших. Листы журнала в программе заменяются листами из файла, строки сразу считаются проведёнными.</p>
+      <div class="dctl"><input type="file" id="impJFile" accept=".xlsx,.xlsm"></div>
+      <div class="dact"><button class="btn main" id="impJGo">Загрузить журнал</button></div></div>
+    <div class="card dcard"><h3>Книга с макросом</h3>
+      <p>Файл «Контроль_размотки_СП-10.xlsm» из прежнего проекта. Лист «ТГО» попадает в лист SPS, таблица подмотки и размотки и список старших — в журнал. Для новой работы не обязательно: координаты можно вставить прямо в лист SPS.</p>
+      <div class="dctl"><input type="file" id="impMFile" accept=".xlsm,.xlsx">
+        <label class="tick"><input type="checkbox" id="impTgo" checked> только координаты (ТГО → SPS), журнал не трогать</label></div>
+      <div class="dact"><button class="btn main" id="impMGo">Загрузить книгу</button></div></div>
+  </div>
+  <h2>Выгрузка</h2>
+  <div class="dgrid">
+    <div class="card dcard"><h3>Журнал и таблицы</h3>
+      <p>Журнал сохраняется книгой .xlsx с теми же листами и формулами, что в исходном файле. Оборудование на поле и история по пикетам сохраняются таблицей в выбранном формате: XLSX — книга Excel с датами и числами, CSV — текстовый файл.</p>
+      <div class="dctl inline"><div><label>Формат таблиц</label><div class="seg" id="xFmt"><button data-v="xlsx" class="on">XLSX</button><button data-v="csv">CSV</button></div></div></div>
+      <div class="dact" id="exports"><button class="btn main" data-w="journal">Журнал ГФО (.xlsx)</button><button class="btn" data-w="field">Оборудование на поле</button><button class="btn" data-w="history">История по пикетам</button></div></div>
+    <div class="card dcard"><h3>History для станции</h3>
+      <p>К каждой строке файла со станции дописываются старший и тип последней работы на этом пикете. Можно выбрать сразу несколько файлов: каждый обрабатывается отдельно, результаты сохраняются одним архивом .zip.</p>
+      <div class="dctl"><div class="seg" id="hMode"><button data-v="508" class="on">508XT, csv</button><button data-v="428">428XL, txt</button></div>
+        <input type="file" id="hFile" accept=".csv,.txt" multiple></div>
+      <div class="dact"><button class="btn main" id="hGo">Получить файл</button><span class="dnote" id="hNote"></span></div></div>
+  </div>
+  <h2>Координаты и копия данных</h2>
+  <div class="dgrid">
+    <div class="card dcard"><h3>Система координат</h3>
+      <p>В этой системе заданы X и Y листа SPS. По ним на карте показывается ваше местоположение с GPS. X — восток (около 450 000), Y — север (около 5 700 000), без номера зоны в начале.</p>
+      <div class="dctl"><div><label for="crsEll">Эллипсоид</label>
+        <select id="crsEll"><option value="gsk2011">ГСК-2011</option><option value="krass">Красовского (СК-42, СК-95)</option><option value="wgs84">WGS 84</option></select></div>
+        <div><label for="crsZone">Зона Гаусса—Крюгера</label><input type="number" id="crsZone" min="1" max="60" inputmode="numeric"></div></div>
+      <div class="dact"><button class="btn main" id="crsSave">Сохранить</button><span class="dnote" id="crsNote"></span></div></div>
+    <div class="card dcard" id="vcCard"><h3>Голосовое сопровождение</h3>
+      <p>Помощник «626» говорит, когда задание началось, какой пикет снят и когда задание завершено. Чтобы дать команду голосом, скажите «626» и после ответа «Слушаю» — команду: «снять точку здесь», «пауза», «продолжить», «завершить».</p>
+      <div class="dctl"><label class="tick"><input type="checkbox" id="vcOn"> Голосовое сопровождение</label></div>
+      <div class="dctl"><label class="tick"><input type="checkbox" id="vcMic"> Слушать команды (микрофон)</label></div>
+      <div class="dact"><button class="btn" id="vcTest">Проверить голос</button><span class="dnote" id="vcNote"></span></div></div>
+    <div class="card dcard"><h3>Копия данных</h3>
+      <p>Все данные хранятся в памяти этого телефона. Раз в неделю сохраняйте копию в «Файлы» или отправляйте себе: если приложение удалить, данные пропадут.</p>
+      <div class="dctl"><input type="file" id="bkFile" accept=".json,application/json"></div>
+      <div class="dact"><button class="btn main" id="bkSave">Сохранить копию</button><button class="btn" id="bkLoad">Восстановить из копии</button><span class="dnote" id="bkNote"></span></div></div>
+  </div>
+  <h2>Правила учёта</h2>
+  <div class="dgrid">
+    <div class="card dcard"><h3>Порядок и размер</h3>
+      <p>Как считать поле, когда размотка и подмотка одного пикета стоят одной датой, и какой интервал считать слишком длинным.</p>
+      <div class="dctl"><div style="width:100%"><label for="rSame">Одной датой: последней считать</label>
+        <select id="rSame" style="width:100%"><option value="razm_last">размотку (как в книге Excel)</option><option value="podm_last">подмотку</option><option value="entry_order">то, что внесено позже</option></select></div>
+        <div><label for="rMax">Наибольший интервал, пикетов</label><input type="number" id="rMax" inputmode="numeric"></div></div></div>
+    <div class="card dcard"><h3>Запреты</h3>
+      <p>Строки с такими ошибками не вносятся совсем. Без запрета программа только предупреждает.</p>
+      <div class="dctl">
+        <label class="tick"><input type="checkbox" id="rTgo"> пикеты, которых нет в SPS</label>
+        <label class="tick"><input type="checkbox" id="rConf"> размотка на занятый пикет или подмотка с пустого</label>
+        <label class="tick"><input type="checkbox" id="rFut"> дата позже сегодняшней</label></div>
+      <div class="dact"><button class="btn main" id="rSave">Сохранить правила</button></div></div>
+  </div>
+</section>
+
+</main></div>
+<datalist id="gx-workers"></datalist><datalist id="gx-topo"></datalist>
+<div class="toast" id="toast"></div>
+<div class="gx-acc" id="gxAcc" role="toolbar" aria-label="Правка ячейки">
+  <button type="button" data-k="prev" aria-label="Предыдущая ячейка">‹</button><button type="button" data-k="next" aria-label="Следующая ячейка">›</button>
+  <button type="button" data-k="up" aria-label="Ячейка выше">▲</button><button type="button" data-k="down" aria-label="Ячейка ниже">▼</button>
+  <span class="gx-acc-t" id="gxAccT"></span><button type="button" class="gx-done" data-k="done">Готово</button>
+</div>
+<div class="upd" id="updBar" role="status"><span>Доступна новая версия</span><button type="button" class="btn small" id="updGo">Обновить</button><button type="button" class="upd-x" id="updX" aria-label="Позже">✕</button></div>
+<div class="veil" id="veil"><div class="dialog" id="dialog"><h3 id="dTitle"></h3><div id="dBody"></div><div class="row"><button class="btn" id="dNo">Отмена</button><button class="btn main" id="dYes"></button></div></div></div>
+
+<script src="engine/gk.js"></script>
+<script src="engine/sheets-core.js"></script>
+<script src="engine/rules.js"></script>
+<script src="engine/validation.js"></script>
+<script src="engine/config.js"></script>
+<script src="engine/store.js"></script>
+<script src="engine/svc-sheets.js"></script>
+<script src="engine/reports.js"></script>
+<script src="engine/tasks.js"></script>
+<script src="engine/zip.js"></script>
+<script src="engine/xlsx.js"></script>
+<script src="engine/importer.js"></script>
+<script src="engine/compare.js"></script>
+<script src="engine/exporter.js"></script>
+<script src="engine/underlay.js"></script>
+<script src="engine/project.js"></script>
+<script src="engine/api.js"></script>
+<script src="engine/boot.js"></script>
+<script src="js/core.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/grid.js"></script>
+<script src="js/sheet.js"></script>
+<script src="js/map.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/work.js"></script>
+<script src="js/voice.js"></script>
+<script src="js/tiles.js"></script>
+<script src="js/stats.js"></script>
+<script src="js/check.js"></script>
+<script src="js/data.js"></script>
+<script src="js/touch.js"></script>
+<script src="js/app.js"></script>
+</body></html>

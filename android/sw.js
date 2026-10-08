@@ -2,7 +2,7 @@
    Версию и список файлов между маркерами пишет tools/build_sw.py (запускать перед выдачей), руками их не править.
    Новая версия ставится, но не включается сама: страница показывает «Доступна новая версия — Обновить»
    и по кнопке присылает сюда сообщение SKIP_WAITING. Старые кэши удаляются при включении новой версии. */
-const VERSION = /*VERSION*/'5c9e66776d7f'/*END*/;
+const VERSION = /*VERSION*/'1582bbb7b50e'/*END*/;
 const FILES = /*FILES*/[
   "./",
   "index.html",
@@ -46,7 +46,7 @@ const FILES = /*FILES*/[
   "icons/icon-512.png",
   "icons/icon-maskable-512.png"
 ]/*END*/;
-const PREFIX = 'razmotka-';
+const PREFIX = 'rzm-android-';
 const CACHE = PREFIX + VERSION;
 const BASE = new URL('./', self.registration.scope).pathname;     // «/» или «/папка/»
 

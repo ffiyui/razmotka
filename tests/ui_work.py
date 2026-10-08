@@ -54,7 +54,7 @@ def chief_project(e0, n0):
 
 with sync_playwright() as p:
     br = p.chromium.launch()
-    ctx = br.new_context(**p.devices['iPhone 14'], accept_downloads=True, permissions=['geolocation'], geolocation={'latitude': 51.4652, 'longitude': 56.3954})
+    ctx = br.new_context(**p.devices[os.environ.get('UI_DEVICE', 'iPhone 14')], accept_downloads=True, permissions=['geolocation'], geolocation={'latitude': 51.4652, 'longitude': 56.3954})
     ctx.add_init_script("try{localStorage.setItem('installhint','1')}catch(e){}")      # подсказка про установку здесь не нужна
     page = ctx.new_page(); errs = []
     page.on('pageerror', lambda e: errs.append(str(e)))
@@ -90,8 +90,9 @@ with sync_playwright() as p:
 
     # ---- кто работает на этом телефоне
     go('topo', "Sheets.pages.topo.grid.rows.length===2")
-    ok('на вкладке ID — «кто работает на этом телефоне»', page.locator('#p-topo .me-chip').count() == 2)
-    page.locator('#p-topo .me-chip', has_text='Топоров').locator('input').check(); page.wait_for_timeout(500)
+    ok('на вкладке ID — галочка в каждой строке с фамилией, отдельного блока над таблицей нет', page.locator('#p-topo .gx-r .gx-me').count() == 2 and page.locator('#p-topo .mebox').count() == 0 and 'кто работает на этом телефоне' in page.inner_text('#p-topo .sh-status'))
+    page.locator('#p-topo .gx-r', has_text='Топоров').locator('.gx-me').tap(); page.wait_for_timeout(500)
+    ok('галочка стоит у выбранного, у остальных нет', page.evaluate("[...document.querySelectorAll('#p-topo .gx-r .gx-me')].map(e=>e.classList.contains('on'))") == [True, False])
     ok('галочка запоминает исполнителя', page.evaluate("PREFS.me.name") == 'Топоров Т. Т.' and page.evaluate("fetch('/api/prefs').then(r=>r.json()).then(j=>j.me.name)") == 'Топоров Т. Т.')
     shot('ios_me')
     go('razb', "Sheets.pages.razb.loaded")
