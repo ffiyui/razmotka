@@ -65,7 +65,7 @@
   /* ---------- офлайн-оболочка и обновление ---------- */
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
   const remote = /[?&]remote\b/.test(location.search);           // ?remote: проверка на настоящем сервере, без кэша
-  if ('serviceWorker' in navigator && !remote && (location.protocol === 'https:' || (location.protocol === 'http:' && local))) {
+  if ('serviceWorker' in navigator && !remote && !window.NATIVE && (location.protocol === 'https:' || (location.protocol === 'http:' && local))) {
     const bar = document.getElementById('updBar');
     // Перед перезагрузкой дописываем на сервер всё, что ещё не сохранено
     const settle = async () => {

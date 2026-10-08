@@ -1,0 +1,7 @@
+{
+  "appId": "ru.sp10.razmotka",
+  "appName": "Размотка СП10",
+  "webDir": "www",
+  "server": {"androidScheme": "https"},
+  "android": {"backgroundColor": "#E6EAF3"}
+}

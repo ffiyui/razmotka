@@ -49,14 +49,14 @@ rep = project.inspect(db, cfg, [('Топоров Т. Т. 08.10.2026 22ч55м.rzm
 work = {w['sheet']: w for w in rep['changes']['work']}
 ok('ПК читает файл с телефона: табло', (work['razb']['rows'], work['razb']['units'], work['razb']['who'], work['razm']['units'], work['razm']['who'][0]['name'])
    == (1, 12, [{'name': 'Топоров Т. Т.', 'rows': 1, 'units': 12}], 10, 'Иванов И. И.'), rep['changes']['work'])
-ok('остаток задания пришёл как новое задание', work['razb']['tasks'] == 1, work['razb'])
+ok('непройденный остаток заданием не приходит', work['razb']['tasks'] == 0, work['razb'])
 ok('файл с телефона назван по исполнителю', rep['files'][0]['name'].startswith('Топоров Т. Т.') and rep['files'][0]['source'] == 'телефон')
 ok('проверка ничего не меняет', reports.summary(db, cfg) == before)
 res = project.apply(db, cfg, cfile, rep['token'], 'merge', ['journal'])
 got = [(r[3][2], r[3][3], r[3][4], r[2], len(r) > 5) for r in svc.load(db, 'razb')['rows']]
-ok('задание заменено фактом, остаток ждёт', got == [(5001, 100, 111, 0, True), (5009, 100, 109, 0, False), (5001, 112, 119, 0, False)], got)
+ok('задание заменено фактом', got == [(5001, 100, 111, 0, True), (5009, 100, 109, 0, False)], got)
 s = reports.summary(db, cfg)
-ok('на поле и карту принятое не попало', (s['field'], s['staked'], s['drafts']['razm'], s['drafts']['razb']) == (10, 0, 1, 3), (s['field'], s['staked'], s['drafts']))
+ok('на поле и карту принятое не попало', (s['field'], s['staked'], s['drafts']['razm'], s['drafts']['razb']) == (10, 0, 1, 2), (s['field'], s['staked'], s['drafts']))
 svc.apply(db, cfg, 'razm', True)
 svc.apply(db, cfg, 'razb', True, [r[0] for r in svc.load(db, 'razb')['rows'] if len(r) > 5])
 s = reports.summary(db, cfg)
@@ -69,7 +69,7 @@ paths.UI_FILE, paths.PREFS_FILE = os.path.join(d2, 'ui.json'), os.path.join(d2, 
 db2, cfg2 = Database(os.path.join(d2, 'razmotka.db')), copy.deepcopy(config.DEFAULTS)
 res = project.import_project(db2, cfg2, os.path.join(d2, 'config.json'), phone)
 s = reports.summary(db2, cfg2)
-ok('замена проекта файлом с телефона: выполненное остаётся выполненным', (res['rows']['sps'], s['field'], s['staked'], s['drafts']['razb'], res['dxf']) == (120, 20, 12, 2, 1), (res['rows'], s['field'], s['staked'], s['drafts']))
+ok('замена проекта файлом с телефона: выполненное остаётся выполненным', (res['rows']['sps'], s['field'], s['staked'], s['drafts']['razb'], res['dxf']) == (120, 20, 12, 1, 1), (res['rows'], s['field'], s['staked'], s['drafts']))
 
 # только задания одного вида работ
 tasks, name = project.export_project(db, cfg, ['journal'], 'razb')

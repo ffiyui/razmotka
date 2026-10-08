@@ -1,7 +1,7 @@
 /* Задания: строки листов «Размотка», «Подмотка» и «Разбивка», по которым кнопка ещё не нажата.
    Здесь список заданий, точки задания для карты (место пикета без координат считается) и запись выполненного:
-   человек прошёл задание целиком или кусками - в журнале остаются проведённые строки по пройденным диапазонам
-   и задания по непройденным. */
+   человек прошёл задание целиком или кусками - в журнал записываются проведённые строки по пройденным диапазонам
+   (или задание в исходном виде, если так выбрано); непройденное заданием не остаётся. */
 globalThis.RZ = globalThis.RZ || {};
 (function (RZ) {
   'use strict';
@@ -63,35 +63,71 @@ globalThis.RZ = globalThis.RZ || {};
     });
   }
 
-  /* Записывает выполненное. visited - номера пикетов, до которых человек дошёл. Пройденные диапазоны становятся
-     проведёнными строками (первая - само задание, чтобы начальник отряда узнал его по номеру строки),
-     непройденные остаются заданиями. Всё или ничего: если строку провести нельзя, журнал не меняется. */
-  function complete(db, cfg, name, id, visited, force = false) {
+  /* Какие пикеты пройдены. mode: 'fact' - только пройденные (кусками - несколько диапазонов), 'orig' - задание
+     в исходном виде целиком. Непройденное заданием не остаётся. */
+  function walked(v, visited, mode) {
+    const a = Math.min(v[3], v[4]), b = Math.max(v[3], v[4]);
+    if (mode === 'orig') return [[a, b]];
+    return runs((visited || []).map(p => parseInt(p, 10)).filter(p => p >= a && p <= b));
+  }
+  /* Нахлёст (только размотка и подмотка): размотка на пикеты, где оборудование уже лежит, подмотка с пикетов,
+     где его нет. Возвращает номера таких пикетов */
+  function overlap_of(repo, name, line, ranges) {
+    if (name !== 'razm' && name !== 'podm') return [];
+    const field = repo.field_pickets(line), out = [];
+    for (const [x, y] of ranges) for (let p = x; p <= y; p++) if (field.has(p) === (name === 'razm')) out.push(p);
+    return out;
+  }
+  const CONFLICT = /^(размотка на пикеты|подмотка с пикетов)/;
+
+  /* Проверка перед записью: что будет записано и есть ли нахлёст */
+  function check(db, name, id, visited, mode = 'fact') {
+    return db.read(repo => {
+      const {v, batch} = row_of(repo, name, id);
+      if (batch !== null) throw new ValidationError('Это задание уже проведено.');
+      const done = walked(v, visited, mode), over = overlap_of(repo, name, v[2], done);
+      return {done, overlap: runs(over), overlap_count: over.length, line: v[2]};
+    });
+  }
+
+  /* Записывает выполненное: пройденные диапазоны становятся проведёнными строками (первая - само задание, чтобы
+     начальник отряда узнал его по номеру строки). Непройденное заданием не остаётся.
+     opt.mode - 'fact' | 'orig'; opt.overlap - 'keep' (записать с нахлёстом) | 'trim' (убрать пикеты нахлёста).
+     Всё или ничего: если строку провести нельзя, журнал не меняется. */
+  function complete(db, cfg, name, id, visited, force = false, opt = {}) {
     id = parseInt(id, 10);
+    const mode = opt.mode === 'orig' ? 'orig' : 'fact';
     return db.write(repo => {
       const {sheet, pos, v, batch} = row_of(repo, name, id);
       if (batch !== null) throw new ValidationError('Это задание уже проведено.');
-      const a = Math.min(v[3], v[4]), b = Math.max(v[3], v[4]);
-      const done = runs((visited || []).map(p => parseInt(p, 10)).filter(p => p >= a && p <= b));
+      let done = walked(v, visited, mode);
       if (!done.length) throw new ValidationError('Ни один пикет задания не пройден.');
-      const seen = new Set(); for (const [x, y] of done) for (let p = x; p <= y; p++) seen.add(p);
-      const rest = []; for (let p = a; p <= b; p++) if (!seen.has(p)) rest.push(p);
-      const left = runs(rest), today = RZ.today(), ids = [];
-      const with_range = (range, date) => { const w = v.slice(); w[0] = date; w[3] = range[0]; w[4] = range[1]; return w; };
-      repo.update_row(name, id, pos, with_range(done[0], today));
+      if (opt.overlap === 'trim') {
+        const over = new Set(overlap_of(repo, name, v[2], done)), keep = [];
+        for (const [x, y] of done) for (let p = x; p <= y; p++) if (!over.has(p)) keep.push(p);
+        done = runs(keep);
+        if (!done.length) throw new ValidationError(name === 'razm' ? 'На всех пройденных пикетах оборудование уже лежит: записывать нечего.' : 'Ни на одном пройденном пикете оборудование не числится: записывать нечего.');
+      }
+      const today = RZ.today(), ids = [];
+      const with_range = range => { const w = v.slice(); w[0] = today; w[3] = range[0]; w[4] = range[1]; return w; };
+      repo.update_row(name, id, pos, with_range(done[0]));
       ids.push(id);
       let k = 0;
-      for (const r of done.slice(1)) ids.push(repo.insert_row(name, pos + (++k) * 1e-4, with_range(r, today)));
-      for (const r of left) repo.insert_row(name, pos + (++k) * 1e-4, with_range(r, v[0]));
-      const res = RZ.svc_sheets.apply(db, cfg, name, force, ids);
+      for (const r of done.slice(1)) ids.push(repo.insert_row(name, pos + (++k) * 1e-4, with_range(r)));
+      let res = RZ.svc_sheets.apply(db, cfg, name, force, ids);
+      if (res.warnings && opt.overlap === 'keep') {                       // нахлёст уже разрешён: о нём не спрашиваем второй раз
+        const rest = res.warnings.filter(w => !CONFLICT.test(w));
+        if (!rest.length) res = RZ.svc_sheets.apply(db, cfg, name, true, ids);
+        else res = {warnings: rest};
+      }
       if (res.warnings) { const e = new ValidationError('warnings'); e.warnings = res.warnings; throw e; }   // откат: спросим и повторим с force
-      return {ok: true, done, left, rows: res.rows, units: res.channels, unit: sheet.unit};
+      return {ok: true, done, left: [], rows: res.rows, units: res.channels, unit: sheet.unit};
     });
   }
-  function complete_safe(db, cfg, name, id, visited, force) {
-    try { return complete(db, cfg, name, id, visited, force); }
+  function complete_safe(db, cfg, name, id, visited, force, opt) {
+    try { return complete(db, cfg, name, id, visited, force, opt); }
     catch (e) { if (e.warnings) return {warnings: e.warnings}; throw e; }
   }
 
-  RZ.tasks = {list, points, complete: complete_safe, runs};
+  RZ.tasks = {list, points, check, complete: complete_safe, runs};
 })(globalThis.RZ);

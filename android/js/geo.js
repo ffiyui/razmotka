@@ -43,17 +43,27 @@
   const saveCalib = () => post('/api/prefs', {geo_calib: G.calib}).catch(() => {});
 
   /* ---------- включение и выключение ---------- */
+  /* Подписка на положение. В приложении для Android - фоновая служба (js/native.js): положение идёт и при погасшем экране */
+  function watch() {
+    if (window.NATIVE) { NATIVE.watchGeo(onFix, onErr).then(id => { if (G.on) G.watch = id; else NATIVE.clearGeo(id); }).catch(e => onErr({code: 2, message: String(e)})); return 'native'; }
+    return navigator.geolocation.watchPosition(onFix, onErr, {enableHighAccuracy: true, maximumAge: 1000, timeout: 30000});
+  }
+  function unwatch(id) {
+    if (id === null || id === undefined) return;
+    if (window.NATIVE) { if (id !== 'native') NATIVE.clearGeo(id); return; }
+    navigator.geolocation.clearWatch(id);
+  }
   function start() {
     if (G.on) return;
     G.err = '';
-    if (!navigator.geolocation) { G.err = 'Это устройство не умеет определять местоположение.'; return status(); }
+    if (!navigator.geolocation && !window.NATIVE) { G.err = 'Это устройство не умеет определять местоположение.'; return status(); }
     if (!secure) { G.err = 'GPS работает только на защищённом адресе (https). Откройте приложение по https-ссылке.'; return status(); }
     G.on = true; G.centered = false;
-    G.watch = navigator.geolocation.watchPosition(onFix, onErr, {enableHighAccuracy: true, maximumAge: 1000, timeout: 30000});
+    G.watch = watch();
     sync();
   }
   function stop() {
-    if (G.watch !== null) navigator.geolocation.clearWatch(G.watch);
+    unwatch(G.watch);
     Object.assign(G, {on: false, watch: null, follow: false, course: false, fix: null, xy: null, near: null, recent: []});
     $('gCourse').checked = false;
     sync(); draw();
@@ -246,9 +256,9 @@
   })();
   // свернули приложение - iOS приостанавливает GPS: при возвращении подписка заводится заново
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible' || !G.on) return;
-    navigator.geolocation.clearWatch(G.watch);
-    G.watch = navigator.geolocation.watchPosition(onFix, onErr, {enableHighAccuracy: true, maximumAge: 1000, timeout: 30000});
+    if (document.visibilityState !== 'visible' || !G.on || window.NATIVE) return;     // фоновая служба Android не останавливается
+    unwatch(G.watch);
+    G.watch = watch();
   });
   loadCrs(); loadCalib(); sync(); status();
 })();

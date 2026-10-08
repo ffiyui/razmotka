@@ -7,7 +7,8 @@
    - поиск пикетов на карте и контуры DXF, пришедшие с файлом проекта;
    - файл проекта: сохранение и загрузка с табло «кто сколько выполнил». */
 
-const NEAR = 10;                               // м: пикет считается пройденным, когда человек вошёл в этот круг
+const NEAR = 10;                               // м: пикет считается пройденным, когда человек вошёл в этот круг (по умолчанию)
+const RAD_MIN = 3, RAD_MAX = 30;                // радиус меняется ползунком на плашке задания
 const VERB = {razm: 'размотку', podm: 'подмотку', razb: 'разбивку'};
 const pad2 = n => String(n).padStart(2, '0');
 const still = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);   // без мигания
@@ -73,12 +74,31 @@ function workSheetHook(page) {
 }
 
 /* ---------- задание на карте и его выполнение ---------- */
-const W = {task: null, visited: new Set(), state: 'idle', near: null, timer: 0, last: null, dir: 0, moved: false};   // state: idle | run | pause
+const W = {task: null, visited: new Set(), state: 'idle', near: null, timer: 0, last: null, dir: 0, moved: false};
+Object.defineProperty(W, 'radius', {get: () => { const r = +PREFS.task_radius; return r >= RAD_MIN && r <= RAD_MAX ? r : NEAR; }});   // state: idle | run | pause
 window.WORK = W;
 const taskColor = () => cssVar({razm: '--razm', podm: '--blue', razb: '--razb'}[W.task.sheet]) || '#007AFF';
 const NOUN = {razb: 'Разбивка', razm: 'Размотка', podm: 'Подмотка'};
 const say = text => { try { if (window.VOICE) VOICE.say(text); } catch (e) { /* голос - не обязательная часть */ } };
 const factKey = (line, picket) => line + ':' + picket;
+/* Номер вслух парами цифр: 1497 - «четырнадцать девяносто семь», 5105 - «пятьдесят один ноль пять» */
+const ONES = ['ноль', 'один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять'];
+const TEENS = ['десять', 'одиннадцать', 'двенадцать', 'тринадцать', 'четырнадцать', 'пятнадцать', 'шестнадцать', 'семнадцать', 'восемнадцать', 'девятнадцать'];
+const TENS = ['', '', 'двадцать', 'тридцать', 'сорок', 'пятьдесят', 'шестьдесят', 'семьдесят', 'восемьдесят', 'девяносто'];
+function pairWords(d) {
+  const a = +d[0], b = +d[1];
+  if (a === 0) return 'ноль ' + ONES[b];
+  if (a === 1) return TEENS[b];
+  return TENS[a] + (b ? ' ' + ONES[b] : '');
+}
+function spokenNumber(n) {
+  const t = String(Math.abs(Math.trunc(n)));
+  if (t.length === 4) return pairWords(t.slice(0, 2)) + ' ' + pairWords(t.slice(2));
+  if (t.length === 2) return pairWords(t);
+  return t;                                                     // другие длины - как есть, телефон прочтёт число
+}
+const spokenPoint = (line, picket) => spokenNumber(line) + ', ' + spokenNumber(picket);
+window.spokenNumber = spokenNumber;
 const taskName = t => `${t.title} · Л ${t.line} · ПП ${rangeText(t.p1, t.p2)}`;
 /* Ход выполнения записывается сразу: телефон может выгрузить приложение в любую минуту */
 function saveSession() {
@@ -111,6 +131,9 @@ function renderTask() {
   $('tkPause').hidden = W.state === 'idle'; $('tkPause').textContent = W.state === 'pause' ? 'Продолжить' : 'Пауза';
   $('tkEnd').hidden = W.state === 'idle'; $('tkEnd').textContent = 'Завершить ' + verb;
   $('tkSnap').hidden = W.state !== 'run';
+  if (document.activeElement !== $('tkRad')) $('tkRad').value = W.radius;
+  $('tkRadV').textContent = W.radius + ' м';
+  if (bar.dataset.task !== t.sheet + t.id) { bar.dataset.task = t.sheet + t.id; bar.classList.toggle('min', remember('tk_min') === '1'); }
 }
 /* Свечение задания «дышит»: карта перерисовывается несколько раз в секунду, пока задание на экране */
 function glow() {
@@ -161,10 +184,8 @@ function startTask() {
   W.state = 'run';
   if (!GEO.on && window.geoStart) geoStart();
   saveSession(); renderTask(); glow();
-  toast('Идите по пикетам: пикет засчитывается в ' + NEAR + ' метрах от него.');
-  say(`${NOUN[W.task.sheet]} началась. Меня зовут 626. Я буду сопровождать тебя до конца маршрута. ` +
-    `Иди по пикетам задания: в ${NEAR} метрах от пикета я отмечу его сам. Если пикет нужно поставить в другом месте, нажми «Снять пикет здесь». ` +
-    `Если что-то нужно — просто скажи: 626.`);
+  toast('Идите по пикетам: пикет засчитывается в ' + W.radius + ' м от него.');
+  say(`${NOUN[W.task.sheet]} начата`);
   if (window.VOICE) VOICE.listen(true);
 }
 function stepTo(picket) { if (W.last !== null && picket !== W.last) W.dir = picket > W.last ? 1 : -1; W.last = picket; }
@@ -202,7 +223,7 @@ function snapHere() {
   try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { /* не критично */ }
   saveSession(); renderTask(); draw();
   toast(`Пикет ${W.task.line} ${picket} снят здесь` + (Math.hypot(dx, dy) >= 1 ? `: сдвиг ${fmtM(Math.hypot(dx, dy))}.` : '.'));
-  say(`${W.task.line} ${picket} готово`);
+  say(spokenPoint(W.task.line, picket) + ', готово');
   return true;
 }
 window.snapHere = snapHere;
@@ -215,14 +236,14 @@ function pauseTask(on) {
 }
 /* Новое положение с GPS: трек и пикеты задания в круге 10 м */
 function workFix(xy, acc, ts) {
-  trackFix(xy, ts);
+  trackFix(xy, ts, acc);
   if (!W.task || W.state !== 'run' || !(acc <= 50)) return;
   const p = W.task.points;
   let added = 0, best = null, got = null;
   for (let i = 0; i < p.length; i += 4) {
     if (W.visited.has(p[i + 2])) continue;
     const d = Math.hypot(p[i] - xy[0], p[i + 1] - xy[1]);
-    if (d <= NEAR) { W.visited.add(p[i + 2]); added++; got = p[i + 2]; }
+    if (d <= W.radius) { W.visited.add(p[i + 2]); added++; got = p[i + 2]; }
     else if (!best || d < best.dist) best = {picket: p[i + 2], dist: d};
   }
   W.near = best;
@@ -230,7 +251,7 @@ function workFix(xy, acc, ts) {
     try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { /* не критично */ }
     stepTo(got);
     saveSession();
-    say(`Точка ${W.task.line} ${got}`);
+    say(spokenPoint(W.task.line, got));
     if (W.visited.size === taskTotal()) toast('Все пикеты задания пройдены. Нажмите «Завершить ' + VERB[W.task.sheet] + '».');
   }
   renderTask();
@@ -256,42 +277,87 @@ function runsOf(numbers) {
   for (const n of [...numbers].sort((a, b) => a - b)) { const l = out[out.length - 1]; if (l && l[1] === n - 1) l[1] = n; else out.push([n, n]); }
   return out;
 }
+/* Остановить работу без записи в журнал: задание остаётся на карте, пройденное сбрасывается */
+function stopTask(text) {
+  W.state = 'idle'; W.visited = new Set(); W.last = null; W.dir = 0; W.near = null;
+  if (window.VOICE) VOICE.listen(false);
+  saveSession(); renderTask(); draw();
+  if (text) toast(text);
+}
+/* Вопрос с двумя ответами и своими надписями на кнопках */
+async function ask2(title, html, yes, no) {
+  const answer = ask(title, html, yes, false);
+  $('dNo').textContent = no;
+  const r = await answer;
+  $('dNo').textContent = 'Отмена';
+  return r;
+}
 async function finishTask() {
   const t = W.task, n = taskTotal(), done = W.visited.size, verb = VERB[t.sheet];
   if (!done) {
-    if (await ask('Ничего не пройдено', `<p>Вы не вошли в круг ${NEAR} м ни у одного пикета задания. Закончить без записи в журнал?</p>`, 'Закончить')) { W.state = 'idle'; W.visited = new Set(); saveSession(); renderTask(); draw(); }
+    if (await ask2('Ничего не пройдено', `<p>Вы не вошли в круг ${W.radius} м ни у одного пикета задания. Закончить без записи в журнал?</p>`, 'Закончить', 'Продолжить')) stopTask('Задание остановлено, в журнал ничего не внесено.');
     return;
   }
   const runs = runsOf(W.visited), walked = runs.map(r => 'от ' + r[0] + ' до ' + r[1]).join(', ');
   const all = done === n && !t.missing;
-  const text = all
+  const text = (all
     ? `<p>Задание пройдено полностью: линия ${t.line}, ПП ${rangeText(t.p1, t.p2)}, ${nf(done)}. Внести в журнал?</p>`
     : `<p>Вы прошли ${esc(walked)} (${nf(done)} из ${nf(n + t.missing)}). Внести изменения вашего задания в журнал?</p>` +
-      (runs.length > 1 ? `<p>Задание разделится на диапазоны: пройденные будут записаны как выполненные, остальные останутся заданием.</p>` : `<p>Непройденная часть останется заданием.</p>`);
+      `<p>В журнал попадёт только пройденное${runs.length > 1 ? ': задание разделится на диапазоны' : ''}. Непройденное заданием не останется.</p>` +
+      `<label class="tick dopt"><input type="checkbox" id="tkOrig"> Записать задание в исходном виде: линия ${t.line}, ПП ${rangeText(t.p1, t.p2)}</label>`) +
+    `<p class="dnote2">«Нет» — остановить ${verb} без записи в журнал.</p>`;
   const was = W.state;
   W.state = 'pause'; renderTask();
-  const answer = ask('Завершить ' + verb + '?', text, 'Да', false);
-  $('dNo').textContent = 'Нет';
-  const yes = await answer;
-  $('dNo').textContent = 'Отмена';
-  if (!yes) { W.state = was; renderTask(); glow(); return; }
-  const body = {sheet: t.sheet, id: t.id, visited: [...W.visited]};
+  const yes = await ask2('Завершить ' + verb + '?', text, 'Да', 'Нет');
+  const orig = !!($('tkOrig') && $('tkOrig').checked);
+  if (!yes) { W.state = was; return stopTask('Изменения не внесены, ' + verb + ' остановлена.'); }
+  const body = {sheet: t.sheet, id: t.id, visited: [...W.visited], mode: orig ? 'orig' : 'fact'};
+  if (t.sheet === 'razm' || t.sheet === 'podm') {                       // нахлёст: оборудование уже лежит (размотка) или его нет (подмотка)
+    let ck = null;
+    try { ck = await post('/api/task/check', body); } catch (e) { ck = null; }
+    if (ck && ck.error) return toast(ck.error);
+    if (ck && ck.overlap_count) {
+      const where = ck.overlap.map(r => rangeText(r[0], r[1])).join(', ');
+      const what = t.sheet === 'razm' ? 'На этих пикетах оборудование уже числится на поле' : 'С этих пикетов оборудование уже подмотано или на поле не числится';
+      const keep = await ask2('Задание выполнено с нахлёстом', `<p>${what}: ${nf(ck.overlap_count)} ${plural(ck.overlap_count, 'пикет', 'пикета', 'пикетов')} (ПП ${esc(where)}).</p>` +
+        `<p>Сохранить с нахлёстом или без него? Без нахлёста эти пикеты в журнал не попадут.</p>`, 'С нахлёстом', 'Без нахлёста');
+      body.overlap = keep ? 'keep' : 'trim';
+    }
+  }
   let j = await post('/api/task/done', body);
   if (j.warnings) {
-    if (!await ask('Проверьте данные', '<p>В задании есть спорные места:</p><ul>' + j.warnings.map(w => '<li>' + esc(w) + '</li>').join('') + '</ul>', 'Всё равно внести')) return;
+    if (!await ask('Проверьте данные', '<p>В задании есть спорные места:</p><ul>' + j.warnings.map(w => '<li>' + esc(w) + '</li>').join('') + '</ul>', 'Всё равно внести')) { W.state = was; renderTask(); glow(); return; }
     j = await post('/api/task/done', {...body, force: true});
   }
-  if (j.error) return toast(j.error);
+  if (j.error) { W.state = was; renderTask(); glow(); return toast(j.error); }
   const u = j.unit === 'пикет' ? picketWord(j.units) : chanWord(j.units);
   W.task = null; W.visited = new Set(); W.state = 'idle'; W.last = null; W.dir = 0; W.moved = false; saveSession(); renderTask();
   say(NOUN[t.sheet] + ' завершена');
   if (window.VOICE) VOICE.listen(false);
   for (const p of Object.values(Sheets.pages)) if (p.work) dirty[p.name] = true;
   await changed(true);
-  toast(`Внесено в журнал: ${u}` + (j.left.length ? `. Осталось заданием: ПП ${j.left.map(r => rangeText(r[0], r[1])).join(', ')}` : '') + '.');
+  toast(`Внесено в журнал: ${u}` + (j.done.length > 1 ? ` (ПП ${j.done.map(r => rangeText(r[0], r[1])).join(', ')})` : '') + '.');
 }
 $('tkGo').onclick = startTask;
 $('tkPause').onclick = () => pauseTask();
+/* Радиус засчитывания: ползунок на плашке, значение запоминается */
+$('tkRad').oninput = () => { $('tkRadV').textContent = $('tkRad').value + ' м'; PREFS.task_radius = +$('tkRad').value; draw(); };
+$('tkRad').onchange = () => { post('/api/prefs', {task_radius: PREFS.task_radius}).catch(() => {}); if (W.task && W.state === 'run' && GEO.xy && GEO.fix) workFix(GEO.xy, GEO.fix.acc, Date.now()); };
+/* Плашка прячется вниз: остаётся строка с названием и полоской хода. Кнопка ⌄, касание спрятанной плашки или движение пальцем */
+function setMin(on) { $('taskBar').classList.toggle('min', on); remember('tk_min', on ? '1' : '0'); }
+$('tkMin').onclick = e => { e.stopPropagation(); setMin(!$('taskBar').classList.contains('min')); };
+$('taskBar').addEventListener('click', e => { if ($('taskBar').classList.contains('min') && !e.target.closest('#tkClose')) setMin(false); });
+(() => {
+  let y0 = null;
+  const bar = $('taskBar');
+  bar.addEventListener('pointerdown', e => { y0 = e.target.closest('input,button') ? null : e.clientY; });
+  bar.addEventListener('pointerup', e => {
+    if (y0 === null) return;
+    const dy = e.clientY - y0; y0 = null;
+    if (dy > 30) setMin(true); else if (dy < -30) setMin(false);
+  });
+  bar.addEventListener('pointercancel', () => { y0 = null; });
+})();
 $('tkSnap').onclick = snapHere;
 window.workCmd = {snap: snapHere, pause: () => pauseTask(true), resume: () => pauseTask(false), finish: () => { if (W.task && W.state !== 'idle') finishTask(); }, active: () => !!W.task && W.state !== 'idle'};
 $('tkEnd').onclick = finishTask;
@@ -304,7 +370,7 @@ function workTap() {
   if (!W.task || W.state !== 'idle' || F.schematic) return false;
   const t = W.task;
   ask(taskName(t), `<p>Линия ${t.line}, пикеты ${rangeText(t.p1, t.p2)}${t.worker ? ', ' + esc(t.worker) : ''}.</p>` +
-    `<p>Пикет засчитывается, когда вы подойдёте к нему на ${NEAR} метров. Можно поставить на паузу и продолжить в другом месте.</p>`, 'Начать ' + VERB[t.sheet]).then(ok => { if (ok) startTask(); });
+    `<p>Пикет засчитывается, когда вы подойдёте к нему на ${W.radius} м. Можно поставить на паузу и продолжить в другом месте.</p>`, 'Начать ' + VERB[t.sheet]).then(ok => { if (ok) startTask(); });
   return true;
 }
 window.workTap = workTap;
@@ -329,7 +395,7 @@ function drawTask(z) {
   ctx.shadowColor = color; ctx.shadowBlur = 18 + 10 * pulse;
   ctx.globalAlpha = .28 + .3 * pulse; ctx.strokeStyle = color; ctx.lineWidth = Math.max(12, z * 3.4); ctx.stroke();
   ctx.shadowBlur = 0; ctx.globalAlpha = 1;
-  const r = Math.max(4.5, z * 1.1), zone = NEAR * V.s;
+  const r = Math.max(4.5, z * 1.1), zone = W.radius * V.s;
   for (let i = 0; i < p.length; i += 4) {
     const [x, y] = toScreen(p[i], p[i + 1]);
     if (x < -30 || y < -30 || x > w + 30 || y > h + 30) continue;
@@ -395,20 +461,33 @@ $('trList').onclick = async e => {
   }
   await loadTracks(); tracksRender(); dirty.field = true;
 };
-/* Запись: точка добавляется, когда человек сместился на 3 м и больше */
+/* Запись трека. Точка добавляется, когда человек сместился заметно больше погрешности GPS:
+   - положения с точностью хуже 20 м не пишутся (на них трек «прыгает» в сторону);
+   - стоя на месте, GPS «гуляет» на несколько метров: шаг записи не меньше 3 м и не меньше половины погрешности;
+   - выброс - скачок, для которого нужна скорость больше 40 м/с, - отбрасывается. */
+const TRACK_ACC = 20, TRACK_STEP = 3, TRACK_JUMP = 40;
 function recNote() {
   const r = T.rec, el = $('recNote');
   el.hidden = !r;
   $('tRec').classList.toggle('on', !!r); $('tRec').setAttribute('aria-pressed', !!r);
   $('tRec').title = r ? 'Остановить запись трека' : 'Записать трек своего движения';
-  if (r) el.textContent = 'Запись трека: ' + fmtM(r.len) + ' · ' + durText(Math.round((Date.now() - r.t0) / 1000)) + (r.pts.length ? '' : ' · жду GPS…');
+  if (r) el.textContent = 'Запись трека: ' + fmtM(r.len) + ' · ' + durText(Math.round((Date.now() - r.t0) / 1000)) +
+    (r.pts.length ? (r.weak ? ' · GPS неточный, жду' : '') : ' · жду GPS…');
 }
-function trackFix(xy, ts) {
+function trackFix(xy, ts, acc) {
   const r = T.rec;
   if (!r) return;
+  ts = ts || Date.now();
+  if (acc !== undefined && !(acc <= TRACK_ACC)) { r.weak = true; return recNote(); }
+  r.weak = false;
   const n = r.pts.length;
-  if (n) { const d = Math.hypot(xy[0] - r.pts[n - 3], xy[1] - r.pts[n - 2]); if (d < 3) return recNote(); r.len += d; }
-  r.pts.push(Math.round(xy[0] * 10) / 10, Math.round(xy[1] * 10) / 10, Math.round(((ts || Date.now()) - r.t0) / 1000));
+  if (n) {
+    const d = Math.hypot(xy[0] - r.pts[n - 3], xy[1] - r.pts[n - 2]), dt = Math.max(1, (ts - r.t0) / 1000 - r.pts[n - 1]);
+    if (d < Math.max(TRACK_STEP, (acc || 0) / 2)) return recNote();
+    if (d / dt > TRACK_JUMP) return recNote();
+    r.len += d;
+  }
+  r.pts.push(Math.round(xy[0] * 10) / 10, Math.round(xy[1] * 10) / 10, Math.round((ts - r.t0) / 1000));
   if (r.pts.length % 30 === 0) remember('track_live', JSON.stringify(r));
   recNote();
 }
@@ -425,7 +504,7 @@ $('tRec').onclick = async () => {
     if (F.schematic) return toast('Трек записывается в координатах листа SPS: сначала загрузите его.');
     T.rec = {t0: Date.now(), pts: [], len: 0};
     if (!GEO.on && window.geoStart) geoStart();
-    if (GEO.xy) trackFix(GEO.xy, Date.now());
+    if (GEO.xy && GEO.fix) trackFix(GEO.xy, Date.now(), GEO.fix.acc);
     recNote(); draw();
     return toast('Запись трека началась. Чтобы закончить, нажмите эту кнопку ещё раз.');
   }
@@ -439,13 +518,23 @@ $('tRec').onclick = async () => {
 };
 // свернули приложение - запись не должна пропасть: черновик трека кладётся в память телефона
 document.addEventListener('visibilitychange', () => { if (document.hidden && T.rec) remember('track_live', JSON.stringify(T.rec)); });
-(async () => {                                   // недописанный трек прошлого запуска сохраняется сам
+window.addEventListener('pagehide', () => { if (T.rec) remember('track_live', JSON.stringify(T.rec)); });
+/* Запись прервалась (телефон закрыл приложение): в течение 12 часов она продолжается, старая сохраняется как есть */
+(async () => {
   let r = null;
   try { r = JSON.parse(remember('track_live') || 'null'); } catch (e) { /* нет черновика */ }
-  if (!r || !Array.isArray(r.pts)) return;
-  remember('track_live', '');
+  if (!r || !Array.isArray(r.pts) || !r.t0) return;
   try { await RZ.ready; } catch (e) { /* настольный сервер */ }
-  if (r.pts.length >= 6 && await saveTrack(r, trackDefault(r.t0) + ' (не завершён)')) toast('Запись трека прервалась при закрытии приложения: пройденная часть сохранена во вкладке «Треки».');
+  try { await colorsReady; } catch (e) { /* без настроек */ }
+  if (Date.now() - r.t0 < 12 * 3600e3) {
+    T.rec = {t0: r.t0, pts: r.pts, len: +r.len || 0};
+    if (!GEO.on && window.geoStart) geoStart();
+    recNote(); draw();
+    toast('Запись трека продолжается после перезапуска приложения.');
+    return;
+  }
+  remember('track_live', '');
+  if (r.pts.length >= 6 && await saveTrack(r, trackDefault(r.t0) + ' (не завершён)')) toast('Запись трека прервалась: пройденная часть сохранена во вкладке «Треки».');
 })();
 function drawTracks() {
   const lines = $('lTracks').checked ? T.items.filter(t => t.show).map(t => [t.pts, '#FF2D55']) : [];

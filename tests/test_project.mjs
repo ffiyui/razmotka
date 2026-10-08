@@ -48,15 +48,15 @@ const work = (date, who, line, a, b) => [date, who, line, a, b, null, null, null
   eq('задания одного исполнителя', (await P.call('GET', '/api/tasks', {me: 'никто'})).items.length, 0);
   // прошёл задание кусками: 100-103 и 106-107, остальное не тронуто
   const res = await P.call('POST', '/api/task/done', {sheet: 'razb', id: ids[0], visited: [100, 101, 102, 103, 106, 107, 500]});
-  eq('задание разбито на диапазоны', [res.done, res.left, res.rows, res.units], [[[100, 103], [106, 107]], [[104, 105], [108, 109]], 2, 6]);
+  eq('задание разбито на диапазоны', [res.done, res.left, res.rows, res.units], [[[100, 103], [106, 107]], [], 2, 6]);
   const got = (await P.rows('razb')).map(r => [r[3][2], r[3][3], r[3][4], r[2]]);
-  eq('в журнале: пройденное проведено, остальное ждёт', got, [[5001, 100, 103, 1], [5001, 106, 107, 1], [5001, 104, 105, 0], [5001, 108, 109, 0], [5025, 100, 104, 0], [5009, 158, 163, 0]]);
+  eq('в журнале фактически пройденное, непройденное заданием не осталось', got, [[5001, 100, 103, 1], [5001, 106, 107, 1], [5025, 100, 104, 0], [5009, 158, 163, 0]]);
   f = await P.call('GET', '/api/field');
   const s = await P.call('GET', '/api/summary');
-  eq('разбитое на карте и в сводке', [f.staked.length / 6, s.staked, s.drafts.razb, s.field], [6, 6, 4, 0]);
+  eq('разбитое на карте и в сводке', [f.staked.length / 6, s.staked, s.drafts.razb, s.field], [6, 6, 2, 0]);
   eq('нечего вносить, если ничего не пройдено', (await P.call('POST', '/api/task/done', {sheet: 'razb', id: ids[1], visited: [1, 2]})).error, 'Ни один пикет задания не пройден.');
   const w = await P.call('POST', '/api/task/done', {sheet: 'razb', id: ids[1], visited: [100, 101, 102, 103, 104]});
-  ok('пикетов нет в SPS: сначала вопрос, журнал не тронут', Array.isArray(w.warnings) && (await P.rows('razb')).length === 6, w);
+  ok('пикетов нет в SPS: сначала вопрос, журнал не тронут', Array.isArray(w.warnings) && (await P.rows('razb')).length === 4, w);
   const w2 = await P.call('POST', '/api/task/done', {sheet: 'razb', id: ids[1], visited: [100, 101, 102, 103, 104], force: true});
   eq('с подтверждением задание внесено целиком', [w2.done, w2.left, (await P.call('GET', '/api/summary')).staked], [[[100, 104]], [], 11]);
   await P.call('POST', '/api/sheet/undo', {name: 'razb'});
@@ -64,7 +64,22 @@ const work = (date, who, line, a, b) => [date, who, line, a, b, null, null, null
   // размотка по заданию
   const rz = (await P.save('razm', [work('2026-10-08', 'Иванов И. И.', 5001, 100, 119)])).ids;
   const r2 = await P.call('POST', '/api/task/done', {sheet: 'razm', id: rz[0], visited: Array.from({length: 12}, (_, i) => 100 + i)});
-  eq('размотка по заданию: пройдено 12 из 20', [r2.done, r2.left, (await P.call('GET', '/api/summary')).field], [[[100, 111]], [[112, 119]], 12]);
+  eq('размотка по заданию: пройдено 12 из 20', [r2.done, r2.left, (await P.call('GET', '/api/summary')).field], [[[100, 111]], [], 12]);
+  // нахлёст: размотка на пикеты, где оборудование уже лежит
+  const rz2 = (await P.save('razm', [work('2026-10-08', 'Иванов И. И.', 5001, 108, 115)])).ids;
+  const all8 = Array.from({length: 8}, (_, i) => 108 + i);
+  const ck = await P.call('POST', '/api/task/check', {sheet: 'razm', id: rz2[0], visited: all8});
+  eq('проверка нахлёста перед записью', [ck.overlap, ck.overlap_count], [[[108, 111]], 4]);
+  const tr2 = await P.call('POST', '/api/task/done', {sheet: 'razm', id: rz2[0], visited: all8, overlap: 'trim'});
+  eq('без нахлёста: записаны только пикеты без оборудования', [tr2.done, (await P.call('GET', '/api/summary')).field], [[[112, 115]], 16]);
+  await P.call('POST', '/api/sheet/undo', {name: 'razm'});
+  const rz3 = (await P.rows('razm')).find(r => !r[2] && r[3][3] === 112)[0];
+  const kp = await P.call('POST', '/api/task/done', {sheet: 'razm', id: rz3, visited: [112, 113], overlap: 'keep', mode: 'orig'});
+  eq('исходный вид задания записывается целиком', [kp.done, kp.warnings], [[[112, 115]], undefined]);
+  await P.call('POST', '/api/sheet/undo', {name: 'razm'});
+  const rz4 = (await P.save('razm', [work('2026-10-08', 'Иванов И. И.', 5001, 110, 113)])).ids;
+  const kw = await P.call('POST', '/api/task/done', {sheet: 'razm', id: rz4[0], visited: [110, 111, 112]});
+  ok('нахлёст без выбора - вопрос, журнал не тронут', Array.isArray(kw.warnings) && kw.warnings[0].startsWith('размотка на пикеты'), kw);
   const fd = await P.call('POST', '/api/find', {ranges: [{line: 5001, p1: 105, p2: 107}, {line: '5009', p2: '120'}, {line: 5017}]});
   eq('поиск пикетов', fd.rows.map(r => [r.found, r.missing]), [[3, 0], [1, 0], [60, 0]]);
   // треки
@@ -76,7 +91,7 @@ const work = (date, who, line, a, b) => [date, who, line, a, b, null, null, null
   // данные переживают перезапуск приложения
   await P.db.flush();
   const again = await P.RZ.Database.open(P.db.kv, P.cfg.rules.same_day);
-  eq('после перезапуска всё на месте', again.read(r => [r.staked_total(), r.rows_full('razb').length, r.rows_full('razb')[0][4].length, r.gone_uids().size, (again.get('tracks') || []).length]), [6, 6, 32, 0, 1]);
+  eq('после перезапуска всё на месте', again.read(r => [r.staked_total(), r.rows_full('razb').length, r.rows_full('razb')[0][4].length, r.gone_uids().size, (again.get('tracks') || []).length]), [6, 4, 32, 0, 1]);
 }
 
 // ---------------------------------------------------------------- файл проекта между устройствами
@@ -116,12 +131,12 @@ const work = (date, who, line, a, b) => [date, who, line, a, b, null, null, null
 
   rep = await chief.look(back);
   const razb = rep.changes.work.find(w => w.sheet === 'razb');
-  eq('табло у начальника: кто сколько выполнил', [razb.rows, razb.units, razb.who, razb.tasks], [2, 25, [{name: 'Топоров Т. Т.', rows: 1, units: 15}, {name: 'Вешкин В. В.', rows: 1, units: 10}], 1]);
+  eq('табло у начальника: кто сколько выполнил', [razb.rows, razb.units, razb.who, razb.tasks], [2, 25, [{name: 'Топоров Т. Т.', rows: 1, units: 15}, {name: 'Вешкин В. В.', rows: 1, units: 10}], 0]);
   eq('новый исполнитель и трек', [rep.changes.people, rep.parts.tracks.new, rep.files[0].source], [[{sheet: 'topo', title: 'ID топографов', added: ['Вешкин В. В.']}], 1, 'телефон']);
   eq('проверка ничего не меняет', (await chief.rows('razb')).map(r => [r[3][3], r[3][4]]), [[100, 119], [130, 139]]);
   res = await chief.call('POST', '/api/project/apply', {token: rep.token, mode: 'merge'});
   const got = (await chief.rows('razb')).map(r => [r[3][1], r[3][3], r[3][4], r[2], !!r[5]]);
-  eq('принятое ждёт кнопки и помечено', got, [['Топоров Т. Т.', 100, 114, 0, true], ['Топоров Т. Т.', 130, 139, 0, false], ['Вешкин В. В.', 140, 149, 0, true], ['Топоров Т. Т.', 115, 119, 0, false]]);
+  eq('принятое ждёт кнопки и помечено', got, [['Топоров Т. Т.', 100, 114, 0, true], ['Топоров Т. Т.', 130, 139, 0, false], ['Вешкин В. В.', 140, 149, 0, true]]);
   eq('на карту принятое не попало, трек принят', [(await chief.call('GET', '/api/summary')).staked, res.tracks], [0, 1]);
   const again = await chief.look(back);
   eq('тот же файл второй раз ничего не добавляет', again.changes.work.map(w => [w.rows, w.tasks, w.changed]), [[0, 0, 0], [0, 0, 0], [0, 0, 0]]);
@@ -150,7 +165,7 @@ if (process.argv[2]) {
   console.log('PC->phone', JSON.stringify({rows: res.rows, field: s.field, staked: s.staked, drafts: s.drafts, dxf: res.dxf}));
   const t = (await P.call('GET', '/api/tasks')).items.filter(i => i.sheet === 'razb');
   const r = await P.call('POST', '/api/task/done', {sheet: 'razb', id: t[0].id, visited: Array.from({length: 12}, (_, i) => t[0].p1 + i), force: true});
-  ok('задание с компьютера выполнено частично', r.ok && r.left.length === 1, r);
+  ok('задание с компьютера выполнено частично: непройденное заданием не осталось', r.ok && r.left.length === 0, r);
   await P.save('razm', [work('2026-10-08', 'Иванов И. И.', 5009, 110, 119)]);
   await P.call('POST', '/api/sheet/apply', {name: 'razm', force: true});
   await P.call('POST', '/api/tracks', {add: {name: 'Смена', pts: [457000, 5704000, 0, 457100, 5704000, 90]}});

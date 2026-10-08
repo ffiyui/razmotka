@@ -1,45 +1,65 @@
 /* Голосовое сопровождение «626»: говорит о ходе задания и слушает команды.
-   Только сообщает и нажимает те же кнопки, что и человек: учёт и задания работают без него так же. */
+   Только сообщает и нажимает те же кнопки, что и человек: учёт и задания работают без него так же.
+   Голос: в браузере - speechSynthesis, в приложении для Android - системный синтез речи (js/native.js).
+   Голос выбирается в «Данные» → «Голосовое сопровождение»; если не выбран, берётся мужской русский, какой найдётся. */
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
-  const synth = window.speechSynthesis || null;
-  const Rec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
-  const V = {log: [], heard: [], rec: null, want: false, live: false, awake: 0, voice: null, male: false, micErr: ''};
+  const NAT = window.NATIVE || null;
+  const synth = NAT && NAT.tts ? null : (window.speechSynthesis || null);
+  const Rec = NAT && NAT.stt ? null : (window.SpeechRecognition || window.webkitSpeechRecognition || null);
+  const canSay = !!(synth || (NAT && NAT.tts)), canHear = !!(Rec || (NAT && NAT.stt));
+  const V = {log: [], heard: [], rec: null, want: false, live: false, awake: 0, voices: [], voice: null, male: false, micErr: '', speaking: false};
   window.VOICE = V;
   const on = () => !PREFS || PREFS.voice !== false;
   /* На Android микрофон при каждом включении может подавать сигнал, поэтому там команды голосом включает сам человек */
   const micPref = () => (PREFS && PREFS.voice_mic !== undefined ? PREFS.voice_mic !== false : !ANDROID);
   const micOn = () => on() && micPref();
-  const MALE = /yuri|юрий|pavel|павел|dmitr|дмитр|maxim|максим|aleksandr|александр|artem|артём|артем|ivan|иван|male|муж/i;
+  const MALE = /yuri|юрий|pavel|павел|dmitr|дмитр|maxim|максим|aleksandr|александр|artem|артём|артем|ivan|иван|male|муж|ru-ru-x-ruc|ru-ru-x-rud|ru-ru-x-dfc/i;
   const FEMALE = /milena|милена|katya|катя|irina|ирина|alena|алёна|алена|svetlana|светлана|anna|анна|female|жен/i;
 
-  function pickVoice() {
-    if (!synth) return;
-    const ru = synth.getVoices().filter(v => /^ru/i.test(v.lang));
-    const m = ru.find(v => MALE.test(v.name));
-    V.voice = m || ru.find(v => !FEMALE.test(v.name)) || ru[0] || null;
-    V.male = !!m;
-    note();
+  /* Список русских голосов: [{name, id}] - id для системы (в приложении Android - номер голоса) */
+  async function loadVoices() {
+    let list = [];
+    try {
+      if (NAT && NAT.tts) list = (await NAT.tts.voices()).map((v, i) => ({name: v.name || v.voiceURI || 'Голос ' + (i + 1), lang: v.lang || '', id: i}));
+      else if (synth) list = synth.getVoices().map(v => ({name: v.name, lang: v.lang, id: v}));
+    } catch (e) { list = []; }
+    V.voices = list.filter(v => /^ru/i.test(v.lang));
+    pickVoice();
   }
-  if (synth) { pickVoice(); try { synth.addEventListener('voiceschanged', pickVoice); } catch (e) { synth.onvoiceschanged = pickVoice; } }
+  function pickVoice() {
+    const ru = V.voices, want = PREFS && PREFS.voice_name;
+    const chosen = want && ru.find(v => v.name === want);
+    const m = ru.find(v => MALE.test(v.name));
+    V.voice = chosen || m || ru.find(v => !FEMALE.test(v.name)) || ru[0] || null;
+    V.male = !!(V.voice && (MALE.test(V.voice.name) || chosen));
+    fillSelect(); note();
+  }
+  if (synth) { try { synth.addEventListener('voiceschanged', loadVoices); } catch (e) { synth.onvoiceschanged = loadVoices; } }
 
   /* Сказать. Сообщения идут по очереди, новое не обрывает прежнее */
   V.say = (text, force) => {
     if (!force && !on()) return false;
     V.log.push(text);
     if (V.log.length > 200) V.log.shift();
-    if (!synth) return false;
+    const pitch = V.male ? 1 : 0.6;                 // мужского голоса в телефоне нет - имеющийся звучит ниже
     try {
+      if (NAT && NAT.tts) {
+        V.speaking = true;
+        NAT.tts.speak(text, {voice: V.voice ? V.voice.id : undefined, pitch}).catch(() => {}).finally(() => { V.speaking = false; });
+        return true;
+      }
+      if (!synth) return false;
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'ru-RU';
-      if (V.voice) u.voice = V.voice;
-      u.pitch = V.male ? 0.9 : 0.55;                // мужского голоса в телефоне нет - имеющийся звучит ниже
-      u.rate = 1;
+      if (V.voice) u.voice = V.voice.id;
+      u.pitch = pitch; u.rate = 1;
       synth.speak(u);
     } catch (e) { return false; }
     return true;
   };
+  const busy = () => V.speaking || !!(synth && synth.speaking);
 
   // ---------------------------------------------------------------- команды
   const WAKE = /(?:626|6\s*2\s*6|шесть\s*сот\s+двадцать\s+шесть|шестьсот\s+двадцать\s+шесть|шесть\s+два\s+шесть|шесть\s+двадцать\s+шесть)/;
@@ -74,13 +94,28 @@
   };
 
   // ---------------------------------------------------------------- микрофон
+  async function nativeLoop() {                     // приложение Android: распознавание фразами, пока задание идёт
+    if (V.live) return;
+    V.live = true; note();
+    while (V.want && micOn() && !document.hidden) {
+      if (busy()) { await new Promise(r => setTimeout(r, 400)); continue; }
+      try {
+        const got = await NAT.stt.listen();
+        if (got === null) { V.micErr = 'Микрофон запрещён: разрешите его приложению в настройках телефона.'; V.want = false; break; }
+        for (const t of got) if (V.hear(t)) break;
+      } catch (e) { await new Promise(r => setTimeout(r, 1500)); }
+    }
+    V.live = false; note();
+  }
   function startRec() {
-    if (!Rec || V.live || !V.want || !micOn() || document.hidden) return;
+    if (!V.want || !micOn() || document.hidden) return;
+    if (NAT && NAT.stt) return void nativeLoop();
+    if (!Rec || V.live) return;
     let r;
     try {
       r = new Rec(); r.lang = 'ru-RU'; r.continuous = true; r.interimResults = false; r.maxAlternatives = 3;
       r.onresult = e => {
-        if (synth && synth.speaking) return;         // себя не слушаем
+        if (busy()) return;                          // себя не слушаем
         for (let i = e.resultIndex; i < e.results.length; i++) {
           if (!e.results[i].isFinal) continue;
           for (let k = 0; k < e.results[i].length; k++) if (V.hear(e.results[i][k].transcript)) break;
@@ -97,38 +132,48 @@
     V.want = !!want && micOn();
     if (V.want) startRec();
     else if (V.rec) { try { V.rec.stop(); } catch (e) { /* уже остановлен */ } }
+    else if (NAT && NAT.stt && V.live) NAT.stt.stop();
   };
   document.addEventListener('visibilitychange', () => { if (!document.hidden && V.want) startRec(); });
 
   // ---------------------------------------------------------------- настройки
+  function fillSelect() {
+    const s = $('vcVoice'); if (!s) return;
+    const html = V.voices.length ? V.voices.map(v => `<option value="${esc(v.name)}"${V.voice && v.name === V.voice.name ? ' selected' : ''}>${esc(v.name)}</option>`).join('')
+      : '<option value="">Русских голосов нет</option>';
+    if (s.dataset.html !== html) { s.innerHTML = html; s.dataset.html = html; }
+    s.disabled = !V.voices.length;
+  }
   function note() {
     const n = $('vcNote'); if (!n) return;
     const parts = [];
-    if (!synth) parts.push('Этот телефон не умеет говорить из браузера.');
+    if (!canSay) parts.push('Этот телефон не умеет говорить из приложения.');
     else if (!V.voice) parts.push('Русского голоса в телефоне нет: добавьте его в настройках телефона.');
-    else parts.push('Голос: ' + V.voice.name + (V.male ? '' : ' — мужского русского голоса в телефоне нет, поэтому этот звучит ниже. ' + (ANDROID ? 'Голос выбирается в Настройках телефона: Специальные возможности → Синтез речи → настройки синтезатора → русский язык, мужской голос' : 'Мужской голос «Юрий» добавляется в Настройках iPhone: Универсальный доступ → Устный контент → Голоса → Русский')));
-    if (!Rec) parts.push('Команды голосом здесь недоступны: телефон не даёт приложению распознавание речи. Кнопки работают как обычно.');
+    else if (!V.male) parts.push('Мужской голос не найден, поэтому этот звучит ниже. Выберите голос в списке или добавьте мужской: ' +
+      (ANDROID ? 'Настройки телефона → Специальные возможности → Синтез речи → настройки синтезатора → русский язык.' : 'Настройки iPhone → Универсальный доступ → Устный контент → Голоса → Русский → «Юрий».'));
+    if (!canHear) parts.push('Команды голосом здесь недоступны: телефон не даёт приложению распознавание речи. Кнопки работают как обычно.');
     else if (V.micErr) parts.push(V.micErr);
     else if (V.live) parts.push('Микрофон слушает.');
     else if (ANDROID && !micPref()) parts.push('Команды голосом выключены: на Android микрофон может подавать сигнал при каждом включении. Включите галочку, если это не мешает.');
     n.textContent = parts.join(' ');
   }
+  const savePref = j => post('/api/prefs', j).catch(() => {});
   async function init() {
     try { if (typeof colorsReady !== 'undefined') await colorsReady; } catch (e) { /* без настроек */ }
-    $('vcOn').checked = on(); $('vcMic').checked = micPref(); $('vcMic').disabled = !Rec || !on();
+    await loadVoices();
+    $('vcOn').checked = on(); $('vcMic').checked = micPref(); $('vcMic').disabled = !canHear || !on();
     $('vcOn').onchange = () => {
-      PREFS.voice = $('vcOn').checked;
-      fetch('/api/prefs', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({voice: PREFS.voice})}).catch(() => {});
-      $('vcMic').disabled = !Rec || !PREFS.voice;
-      if (!PREFS.voice) { V.listen(false); if (synth) synth.cancel(); }
+      PREFS.voice = $('vcOn').checked; savePref({voice: PREFS.voice});
+      $('vcMic').disabled = !canHear || !PREFS.voice;
+      if (!PREFS.voice) { V.listen(false); try { if (synth) synth.cancel(); else if (NAT && NAT.tts) NAT.tts.stop(); } catch (e) { /* молчит */ } }
       else { V.say('Голосовое сопровождение включено'); if (window.workCmd && workCmd.active()) V.listen(true); }
     };
     $('vcMic').onchange = () => {
-      PREFS.voice_mic = $('vcMic').checked;
-      fetch('/api/prefs', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({voice_mic: PREFS.voice_mic})}).catch(() => {});
+      PREFS.voice_mic = $('vcMic').checked; savePref({voice_mic: PREFS.voice_mic});
       V.listen(PREFS.voice_mic && window.workCmd && workCmd.active());
     };
-    $('vcTest').onclick = () => { pickVoice(); if (!V.say('Меня зовут 626. Я буду сопровождать тебя до конца маршрута.', true)) note(); };
+    $('vcVoice').onchange = () => { PREFS.voice_name = $('vcVoice').value; savePref({voice_name: PREFS.voice_name}); pickVoice(); V.say('Разбивка начата', true); };
+    $('vcTest').onclick = async () => { await loadVoices(); if (!V.say('Разбивка начата. ' + spokenNumber(5105) + ', ' + spokenNumber(1497), true)) note(); };
     note();
   }
   init();

@@ -65,9 +65,9 @@ with sync_playwright() as p:
     def go(tab, wait='true'):
         page.evaluate(f"location.hash='#{tab}'"); page.wait_for_function(f"document.querySelector('#p-{tab}.on') && ({wait})", timeout=15000); page.wait_for_timeout(400)
 
-    def gps(line_k, i, dx=0, dy=0):
+    def gps(line_k, i, dx=0, dy=0, acc=4):
         """Подставляет положение GPS: пикет i линии k со сдвигом в метрах."""
-        page.evaluate(f"(()=>{{const q=GEO.proj.inv(BASE[0]+25*{i}+{dx},BASE[1]+200*{line_k}+{dy});geoInject({{lat:q[0],lon:q[1],acc:4}})}})()")
+        page.evaluate(f"(()=>{{const q=GEO.proj.inv(BASE[0]+25*{i}+{dx},BASE[1]+200*{line_k}+{dy});geoInject({{lat:q[0],lon:q[1],acc:{acc}}})}})()")
         page.wait_for_timeout(60)
 
     page.goto(URL); page.wait_for_function("typeof S==='object' && S && typeof GEO==='object' && GEO.proj", timeout=20000); page.wait_for_timeout(1500)
@@ -130,7 +130,7 @@ with sync_playwright() as p:
     page.click('#dYes'); page.wait_for_function("WORK.state==='run'", timeout=5000)
     ok('работа начата, GPS включён', page.evaluate("GEO.on") and page.is_visible('#tkEnd') and page.inner_text('#tkEnd') == 'Завершить разбивку')
     said = page.evaluate("VOICE.log[VOICE.log.length-1]")
-    ok('голос: начало работы', said.startswith('Разбивка началась. Меня зовут 626. Я буду сопровождать тебя до конца маршрута.') and said.endswith('Если что-то нужно — просто скажи: 626.'), said)
+    ok('голос при начале: «Разбивка начата»', said == 'Разбивка начата', said)
     ok('кнопка «Снять пикет здесь» на плашке', page.is_visible('#tkSnap') and page.evaluate("(()=>{const r=document.getElementById('taskBar').getBoundingClientRect();return r.top>0&&r.bottom<=innerHeight})()"))
 
     # ---- идём по пикетам: засчитывается только в круге 10 м
@@ -139,7 +139,8 @@ with sync_playwright() as p:
     ok('в 30 метрах пикет не засчитан', page.evaluate("WORK.visited.size") == 0 and '30 м' in page.inner_text('#tkSub'), page.inner_text('#tkSub'))
     gps(1, 0, 6, 6)
     ok('в 8,5 м от пикета — засчитан', page.evaluate("[...WORK.visited]") == [1000])
-    ok('голос: «Точка 5009 1000»', page.evaluate("VOICE.log[VOICE.log.length-1]") == 'Точка 5009 1000')
+    ok('голос называет точку парами цифр', page.evaluate("VOICE.log[VOICE.log.length-1]") == 'пятьдесят ноль девять, десять ноль ноль', page.evaluate("VOICE.log[VOICE.log.length-1]"))
+    ok('пары цифр: 1497 и 5105', page.evaluate("[spokenNumber(1497),spokenNumber(5105),spokenNumber(1210)]") == ['четырнадцать девяносто семь', 'пятьдесят один ноль пять', 'двенадцать десять'])
     for i in range(1, 12):
         gps(1, i, 3, -2)
     gps(1, 11, 60, 80)                                         # отошёл в сторону: ничего не меняется
@@ -161,13 +162,17 @@ with sync_playwright() as p:
     txt = page.inner_text('#dBody')
     ok('вопрос при завершении: откуда докуда прошёл', 'Вы прошли от 1000 до 1011, от 1015 до 1016 (14 из 20)' in txt and 'Внести изменения вашего задания в журнал?' in txt and page.inner_text('#dYes') == 'Да' and page.inner_text('#dNo') == 'Нет', txt)
     shot('ios_task_finish')
-    page.click('#dNo'); page.wait_for_timeout(200)
-    ok('«Нет» оставляет задание как было', page.evaluate("WORK.task && WORK.visited.size") == 14 and page.evaluate("S.staked") == 0)
+    ok('в вопросе можно выбрать исходный вид задания', page.is_visible('#tkOrig') and not page.is_checked('#tkOrig') and 'Непройденное заданием не останется' in txt)
+    page.click('#dNo'); page.wait_for_timeout(300)
+    ok('«Нет» — изменения не вносятся, работа остановлена', page.evaluate("[WORK.state, WORK.visited.size, S.staked]") == ['idle', 0, 0] and page.is_visible('#tkGo'), page.evaluate("[WORK.state, WORK.visited.size, S.staked]"))
+    page.click('#tkGo'); page.wait_for_function("WORK.state==='run'")
+    for i in list(range(0, 12)) + [15, 16]:
+        gps(1, i)
     page.click('#tkEnd'); page.wait_for_selector('#veil[style*=flex]'); page.click('#dYes')
     page.wait_for_function("document.getElementById('toast').textContent.includes('Внесено в журнал')", timeout=10000)
     rows = page.evaluate("fetch('/api/sheet?name=razb').then(r=>r.json()).then(j=>j.rows.map(r=>[r[3][2],r[3][3],r[3][4],r[2]]))")
-    ok('задание разбито на диапазоны: пройденное проведено, остальное — задание',
-       rows == [[5009, 1000, 1011, 1], [5009, 1015, 1016, 1], [5009, 1012, 1014, 0], [5009, 1017, 1019, 0], [5025, 1000, 1004, 0], [5001, 1030, 1039, 0]], rows)
+    ok('задание разбито на пройденные диапазоны, непройденное заданием не осталось',
+       rows == [[5009, 1000, 1011, 1], [5009, 1015, 1016, 1], [5025, 1000, 1004, 0], [5001, 1030, 1039, 0]], rows)
     ok('разбитое на карте, плашка задания убрана', page.evaluate("[S.staked,F.staked.length/6,WORK.task]") == [14, 14, None] and page.is_hidden('#taskBar'))
     shot('ios_field_after')
 
@@ -194,7 +199,7 @@ with sync_playwright() as p:
     ok('в 50 м от расчётного места пикет сам не снят', page.evaluate("WORK.visited.size") == 0)
     page.click('#tkSnap'); page.wait_for_timeout(200)
     r = page.evaluate("[[...WORK.visited],WORK.task.points.slice(0,8),VOICE.log[VOICE.log.length-1]]")
-    ok('кнопка сняла следующий пикет там, где стоит человек, остальные сдвинулись', r == [[1000], [base[0] + 40, base[1] + 630, 1000, 1, base[0] + 65, base[1] + 630, 1001, 0], '5025 1000 готово'], r)
+    ok('кнопка сняла следующий пикет там, где стоит человек, остальные сдвинулись', r == [[1000], [base[0] + 40, base[1] + 630, 1000, 1, base[0] + 65, base[1] + 630, 1001, 0], 'пятьдесят двадцать пять, десять ноль ноль, готово'], r)
     shot('ios_snap')
     gps(3, 1, 40, 55)
     n = page.evaluate("VOICE.log.length")
@@ -202,9 +207,9 @@ with sync_playwright() as p:
     ok('«626» — «Слушаю»', page.evaluate("VOICE.hear('626')") == 'wake' and page.evaluate("VOICE.log[VOICE.log.length-1]") == 'Слушаю')
     ok('команда после «Слушаю»', page.evaluate("VOICE.hear('Снять точку здесь.')") == 'snap')
     r = page.evaluate("[[...WORK.visited],WORK.task.points.slice(4,12),VOICE.log[VOICE.log.length-1]]")
-    ok('голосом снят следующий пикет', r == [[1000, 1001], [base[0] + 65, base[1] + 655, 1001, 1, base[0] + 90, base[1] + 655, 1002, 0], '5025 1001 готово'], r)
+    ok('голосом снят следующий пикет', r == [[1000, 1001], [base[0] + 65, base[1] + 655, 1001, 1, base[0] + 90, base[1] + 655, 1002, 0], 'пятьдесят двадцать пять, десять ноль один, готово'], r)
     gps(3, 2, 42, 52)
-    ok('дальше пикеты снимаются сами от нового места', page.evaluate("[...WORK.visited]") == [1000, 1001, 1002] and page.evaluate("VOICE.log[VOICE.log.length-1]") == 'Точка 5025 1002')
+    ok('дальше пикеты снимаются сами от нового места', page.evaluate("[...WORK.visited]") == [1000, 1001, 1002] and page.evaluate("VOICE.log[VOICE.log.length-1]") == 'пятьдесят двадцать пять, десять ноль два')
     ok('«шестьсот двадцать шесть, пауза»', page.evaluate("VOICE.hear('шестьсот двадцать шесть, пауза')") == 'pause' and page.evaluate("WORK.state") == 'pause' and page.is_hidden('#tkSnap'))
     ok('«626 продолжить»', page.evaluate("VOICE.hear('626 продолжить')") == 'resume' and page.evaluate("WORK.state") == 'run')
     page.wait_for_timeout(900); page.reload(); page.wait_for_function("typeof WORK==='object' && WORK.task && WORK.visited.size===3", timeout=20000)
@@ -219,11 +224,49 @@ with sync_playwright() as p:
     go('data'); page.check('#vcOn'); page.wait_for_timeout(200)
     go('field', 'F && F.sps.length>0'); page.click('#tkClose'); page.wait_for_selector('#veil[style*=flex]'); page.click('#dYes'); page.wait_for_timeout(300)
 
+    # ---- размотка с нахлёстом, радиус ползунком, плашка прячется вниз
+    rid = page.evaluate("post('/api/sheet/save',{name:'razm',rows:[{id:null,pos:5000,idx:9,v:['2026-10-08','Иванов И. И.',5001,1005,1012,null,null,null,null]}]}).then(j=>j.ids[0])")
+    page.evaluate(f"changed(true).then(()=>showTask('razm',{rid}))")
+    page.wait_for_function("WORK.task && WORK.task.sheet==='razm' && WORK.task.p1===1005", timeout=10000); page.wait_for_timeout(300)
+    page.click('#tkGo'); page.wait_for_function("WORK.state==='run'")
+    page.evaluate("(()=>{const r=document.getElementById('tkRad');r.value=20;r.dispatchEvent(new Event('input'));r.dispatchEvent(new Event('change'))})()"); page.wait_for_timeout(200)
+    ok('радиус меняется ползунком и запоминается', page.evaluate("WORK.radius") == 20 and page.inner_text('#tkRadV') == '20 м' and page.evaluate("fetch('/api/prefs').then(r=>r.json()).then(j=>j.task_radius)") == 20)
+    gps(0, 5, 0, 15)
+    ok('в 15 м при радиусе 20 м пикет засчитан', page.evaluate("[...WORK.visited]") == [1005])
+    for i in range(6, 13):
+        gps(0, i)
+    page.click('#tkMin'); page.wait_for_timeout(350)
+    ok('плашка прячется вниз: видны только название и ход', page.evaluate("document.getElementById('taskBar').classList.contains('min')") and page.is_hidden('#tkRad') and page.is_hidden('#tkEnd'))
+    shot('ios_task_min')
+    page.click('#tkTitle'); page.wait_for_timeout(350)
+    ok('касание спрятанной плашки возвращает её', not page.evaluate("document.getElementById('taskBar').classList.contains('min')") and page.is_visible('#tkEnd'))
+    page.click('#tkEnd'); page.wait_for_selector('#veil[style*=flex]'); page.click('#dYes')
+    page.wait_for_function("document.getElementById('dTitle').textContent==='Задание выполнено с нахлёстом'", timeout=8000)
+    txt = page.inner_text('#dBody')
+    ok('нахлёст: программа сообщает и предлагает выбор', '5 пикетов (ПП 1005–1009)' in txt and page.inner_text('#dYes') == 'С нахлёстом' and page.inner_text('#dNo') == 'Без нахлёста', txt)
+    shot('ios_overlap')
+    page.click('#dNo'); page.wait_for_function("document.getElementById('toast').textContent.includes('Внесено в журнал')", timeout=10000)
+    ok('без нахлёста записаны только новые пикеты', page.evaluate("S.field") == 33, page.evaluate("S.field"))
+    page.evaluate("(()=>{const r=document.getElementById('tkRad');r.value=10;r.dispatchEvent(new Event('input'));r.dispatchEvent(new Event('change'))})()")
+
     # ---- трек
     go('field', 'F && F.sps.length>0')
     gps(2, 0)
     page.click('#tRec'); page.wait_for_function("TRACKS.rec", timeout=5000)
-    for i in range(1, 9):
+    for i in range(1, 5):
+        gps(2, i)
+    gps(2, 4, 0, 60, acc=45)                                   # неточное положение: не пишется
+    gps(2, 4, 900, 0)                                          # выброс на 900 м за секунду: не пишется
+    gps(2, 4, 1, 1)                                            # дрожание на месте: не пишется
+    ok('в трек не попали неточные положения, выбросы и дрожание на месте', page.evaluate("TRACKS.rec.pts.length/3") == 5, page.evaluate("TRACKS.rec.pts"))
+    page.wait_for_timeout(1100)
+    for i in range(5, 7):
+        gps(2, i)
+    page.reload(); page.wait_for_function("typeof TRACKS==='object' && TRACKS.rec", timeout=20000); page.wait_for_timeout(800)
+    page.evaluate("window.BASE=%s" % json.dumps(base))
+    ok('запись трека продолжается после перезапуска приложения', page.evaluate("TRACKS.rec.pts.length/3") == 7 and page.is_visible('#recNote'), page.evaluate("TRACKS.rec&&TRACKS.rec.pts.length"))
+    go('field', 'F && F.sps.length>0')
+    for i in range(7, 9):
         gps(2, i)
     ok('запись трека идёт', page.is_visible('#recNote') and '200 м' in page.inner_text('#recNote') and page.evaluate("TRACKS.rec.pts.length/3") == 9, page.inner_text('#recNote'))
     shot('ios_track_rec')
@@ -262,7 +305,7 @@ with sync_playwright() as p:
     only = os.path.join(d, 'tasks.rzm'); dl.value.save_as(only)
     import zipfile
     j = json.loads(zipfile.ZipFile(only).read('journal.json'))
-    ok('«только задания: разбивка» — в файле лишь невыполненные задания', [len(j['sheets'][k]) for k in ('razb', 'razm')] == [4, 0] and all(not r['done'] for r in j['sheets']['razb']))
+    ok('«только задания: разбивка» — в файле лишь невыполненные задания', [len(j['sheets'][k]) for k in ('razb', 'razm')] == [2, 0] and all(not r['done'] for r in j['sheets']['razb']))
     page.fill('#prjName', ''); page.evaluate("PREFS.me=null")
     page.click('#prjSave'); page.wait_for_selector('#prjAsk', timeout=5000)
     ok('без отмеченного исполнителя имя спрашивается при сохранении', page.inner_text('#dTitle') == 'Имя файла')
@@ -273,10 +316,10 @@ with sync_playwright() as p:
     rep = project.inspect(db, cfg, [(os.path.basename(out), open(out, 'rb').read())])
     work = {w['sheet']: w for w in rep['changes']['work']}
     ok('табло на ПК: кто сколько выполнил', (work['razb']['who'], work['razb']['tasks'], work['razm']['who']) ==
-       ([{'name': 'Топоров Т. Т.', 'rows': 2, 'units': 14}], 2, [{'name': 'Иванов И. И.', 'rows': 1, 'units': 10}]), rep['changes']['work'])
+       ([{'name': 'Топоров Т. Т.', 'rows': 2, 'units': 14}], 0, [{'name': 'Иванов И. И.', 'rows': 2, 'units': 13}]), rep['changes']['work'])
     project.apply(db, cfg, os.path.join(d, 'config.json'), rep['token'], 'merge', ['journal'])
     s = reports.summary(db, cfg)
-    ok('на ПК принятое ждёт кнопки', (s['staked'], s['field'], s['drafts']['razb'], s['drafts']['razm']) == (0, 20, 6, 1), (s['staked'], s['field'], s['drafts']))
+    ok('на ПК принятое ждёт кнопки', (s['staked'], s['field'], s['drafts']['razb'], s['drafts']['razm']) == (0, 20, 4, 2), (s['staked'], s['field'], s['drafts']))
 
     ok('ошибок в консоли нет', not errs, errs[:5])
     br.close()

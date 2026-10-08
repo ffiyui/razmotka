@@ -1,0 +1,49 @@
+# Сборка приложения для Android. Запускается сама, когда меняется папка android/ или native/,
+# готовый файл .apk выкладывается в раздел Releases репозитория (выпуск «android-latest»).
+name: Android
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', 'native/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: android
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Сборка
+        run: |
+          set -o pipefail
+          bash native/build.sh 2>&1 | tee native/build.log
+      - name: Выпуск
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest -y --cleanup-tag || true
+          gh release create android-latest native/out/razmotka-sp10.apk \
+            --title "Размотка СП10 для Android (сборка ${{ github.run_number }})" \
+            --notes "Установка: скачайте razmotka-sp10.apk на телефон и откройте его. Разрешите установку из этого источника, если телефон спросит." \
+            --target "${{ github.sha }}" --latest
+      - name: Журнал сборки
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/log && cp native/build.log /tmp/log/build.log 2>/dev/null || echo "нет журнала" > /tmp/log/build.log
+          echo "run ${{ github.run_number }} ${{ job.status }} ${{ github.sha }}" > /tmp/log/status.txt
+          cd /tmp/log && git init -q && git checkout -q -b ci-logs && git add . \
+            && git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "сборка ${{ github.run_number }}" \
+            && git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-logs

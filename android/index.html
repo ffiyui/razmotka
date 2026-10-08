@@ -75,11 +75,15 @@
         <div class="find-foot"><span id="findNote"></span><button type="button" class="find-link" id="findClear" hidden>Сбросить</button></div>
       </form>
       <div class="taskbar" id="taskBar" hidden>
-        <div class="tk-head"><b id="tkTitle"></b><button type="button" class="icon-btn" id="tkClose" title="Убрать задание с карты" aria-label="Убрать задание с карты">✕</button></div>
+        <div class="tk-grip" id="tkGrip" aria-hidden="true"></div>
+        <div class="tk-head"><b id="tkTitle"></b><button type="button" class="icon-btn" id="tkMin" title="Спрятать вниз" aria-label="Спрятать плашку задания вниз">⌄</button><button type="button" class="icon-btn" id="tkClose" title="Убрать задание с карты" aria-label="Убрать задание с карты">✕</button></div>
         <div class="tk-sub" id="tkSub"></div>
         <div class="tk-prog" id="tkProg" hidden><i id="tkFill"></i></div>
+        <div class="tk-more">
+        <label class="tk-rad"><span>Радиус</span><input type="range" id="tkRad" min="3" max="30" step="1" aria-label="Радиус, в котором пикет засчитывается"><b id="tkRadV"></b></label>
         <div class="tk-acts"><button type="button" class="btn small main" id="tkGo"></button><button type="button" class="btn small" id="tkPause" hidden>Пауза</button><button type="button" class="btn small" id="tkEnd" hidden></button></div>
         <button type="button" class="btn small tk-snap" id="tkSnap" hidden>Снять пикет здесь</button>
+        </div>
       </div>
       <div class="recnote" id="recNote" hidden></div>
       <div class="mapnote" id="mapNote"></div>
@@ -236,8 +240,9 @@
         <div><label for="crsZone">Зона Гаусса—Крюгера</label><input type="number" id="crsZone" min="1" max="60" inputmode="numeric"></div></div>
       <div class="dact"><button class="btn main" id="crsSave">Сохранить</button><span class="dnote" id="crsNote"></span></div></div>
     <div class="card dcard" id="vcCard"><h3>Голосовое сопровождение</h3>
-      <p>Помощник «626» говорит, когда задание началось, какой пикет снят и когда задание завершено. Чтобы дать команду голосом, скажите «626» и после ответа «Слушаю» — команду: «снять точку здесь», «пауза», «продолжить», «завершить».</p>
+      <p>Голос говорит, когда работа начата и завершена, и называет каждый записанный пикет: линию и пикет парами цифр («пятьдесят один ноль пять, четырнадцать девяносто семь»). Команды голосом: скажите «626», после ответа «Слушаю» — «снять точку здесь», «пауза», «продолжить» или «завершить».</p>
       <div class="dctl"><label class="tick"><input type="checkbox" id="vcOn"> Голосовое сопровождение</label></div>
+      <div class="dctl"><label for="vcVoice">Голос</label><select id="vcVoice"></select></div>
       <div class="dctl"><label class="tick"><input type="checkbox" id="vcMic"> Слушать команды (микрофон)</label></div>
       <div class="dact"><button class="btn" id="vcTest">Проверить голос</button><span class="dnote" id="vcNote"></span></div></div>
     <div class="card dcard"><h3>Копия данных</h3>
@@ -292,6 +297,7 @@
 <script src="engine/api.js"></script>
 <script src="engine/boot.js"></script>
 <script src="js/core.js"></script>
+<script src="js/native.js"></script>
 <script src="js/nav.js"></script>
 <script src="js/grid.js"></script>
 <script src="js/sheet.js"></script>

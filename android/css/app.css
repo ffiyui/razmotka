@@ -774,3 +774,29 @@ body.kbd{--sab:0px}
   :root{--gx-gut:54px}
 }
 @keyframes pageFade{from{opacity:0}to{opacity:1}}
+
+/* плашка задания: радиус ползунком, прячется вниз (кнопкой ⌄ или движением пальца вниз) */
+.tk-grip{display:none;width:38px;height:5px;border-radius:3px;background:var(--line);margin:-4px auto 6px}
+.tk-rad{display:flex;align-items:center;gap:10px;margin:10px 0 0;font-size:13.5px;color:var(--muted)}
+.tk-rad input{flex:1;min-width:0;accent-color:var(--tk,var(--accent));height:28px;margin:0}
+.tk-rad b{flex:0 0 46px;text-align:right;color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.taskbar{transition:transform .28s cubic-bezier(.2,.8,.2,1);touch-action:pan-x}
+.taskbar.min .tk-more,.taskbar.min .tk-sub{display:none}
+.taskbar.min{padding-bottom:10px;cursor:pointer}
+.taskbar.min #tkMin{transform:rotate(180deg)}
+.tk-head #tkMin{font-size:16px;line-height:1}
+.dopt{display:flex;gap:10px;align-items:flex-start;margin:12px 0 4px;font-size:14.5px;line-height:1.35;color:var(--ink)}
+.dopt input{flex:0 0 auto;margin-top:1px}
+.dnote2{color:var(--muted);font-size:13px}
+@media (pointer:coarse){
+  .tk-grip{display:block}
+  .tk-head .icon-btn{width:36px;height:36px}
+  .tk-rad input{height:36px}
+}
+
+/* Списки выбора одинаковые на iPhone, Android и компьютере: без системного вида (на iPhone он узкий и низкий), своя стрелка */
+select{-webkit-appearance:none;appearance:none;padding-right:36px;line-height:1.25;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238E8E93' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;background-size:12px 8px}
+.side select{width:100%;min-height:40px;border-radius:999px;padding-left:16px}
+@media (pointer:coarse){.side select{min-height:44px}}

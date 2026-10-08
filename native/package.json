@@ -1,0 +1,15 @@
+{
+  "name": "razmotka-sp10-android",
+  "private": true,
+  "description": "Оболочка Android для приложения «Контроль размотки СП10»: та же страница из папки android/ плюс фоновая геолокация, системный голос и сохранение файлов.",
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/filesystem": "^7.0.0",
+    "@capacitor/share": "^7.0.0",
+    "@capacitor-community/background-geolocation": "^1.2.20",
+    "@capacitor-community/speech-recognition": "^7.0.0",
+    "@capacitor-community/text-to-speech": "^6.0.0"
+  }
+}

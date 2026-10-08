@@ -25,6 +25,8 @@ const hMode=seg('hMode');
    Меню можно открыть только по нажатию, поэтому после подготовки файла спрашиваем нажатием кнопки. */
 const sizeText=n=>n<1024?n+' Б':n<1048576?(n/1024).toFixed(0)+' КБ':(n/1048576).toFixed(1).replace('.',',')+' МБ';
 async function saveBlob(blob,name){
+  if(window.NATIVE){                                   // приложение Android: файл кладётся во временную папку и отдаётся через «Поделиться»
+    try{await NATIVE.saveFile(blob,name);return}catch(e){toast('Файл не сохранился: '+(e&&e.message||e));return}}
   const type=blob.type||'application/octet-stream',file=typeof File==='function'?new File([blob],name,{type}):null;
   const share=file&&navigator.canShare&&navigator.canShare({files:[file]})&&document.body.classList.contains('touch');
   if(share){

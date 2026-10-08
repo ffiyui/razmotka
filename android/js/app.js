@@ -41,7 +41,7 @@ if(/[?&]remote\b/.test(location.search)){
    Android: Chrome сам умеет установить приложение - кнопка в подсказке вызывает его окно установки */
 (()=>{const ios=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
   const app=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
-  if(app||remember('installhint'))return;
+  if(app||window.NATIVE||remember('installhint'))return;
   if(ios){remember('installhint','1');
     setTimeout(()=>ask('Установите приложение','<p>Нажмите «Поделиться» <b>⎋</b> в Safari и выберите «На экран “Домой”». Тогда приложение работает без сети, запускается как обычное и Safari не стирает его данные.</p>','Понятно',true),2500)}
   else if(ANDROID){let ev=null,shown=false;
