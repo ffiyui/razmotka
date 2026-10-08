@@ -88,13 +88,16 @@ function workSheetHook(page) {
 }
 
 /* ---------- задание на карте и его выполнение ---------- */
-const W = {task: null, visited: new Set(), state: 'idle', near: null, timer: 0};   // state: idle | run | pause
+const W = {task: null, visited: new Set(), state: 'idle', near: null, timer: 0, last: null, dir: 0, moved: false};   // state: idle | run | pause
 window.WORK = W;
 const taskColor = () => cssVar({razm: '--razm', podm: '--blue', razb: '--razb'}[W.task.sheet]) || '#007AFF';
+const NOUN = {razb: 'Разбивка', razm: 'Размотка', podm: 'Подмотка'};
+const say = text => { try { if (window.VOICE) VOICE.say(text); } catch (e) { /* голос - не обязательная часть */ } };
+const factKey = (line, picket) => line + ':' + picket;
 const taskName = t => `${t.title} · Л ${t.line} · ПП ${rangeText(t.p1, t.p2)}`;
 /* Ход выполнения записывается сразу: телефон может выгрузить приложение в любую минуту */
 function saveSession() {
-  post('/api/prefs', {session: W.task ? {sheet: W.task.sheet, id: W.task.id, visited: [...W.visited], state: W.state} : null}).catch(() => {});
+  post('/api/prefs', {session: W.task ? {sheet: W.task.sheet, id: W.task.id, visited: [...W.visited], state: W.state, last: W.last, dir: W.dir, pts: W.moved ? W.task.points : undefined} : null}).catch(() => {});
 }
 function taskTotal() { return W.task.points.length / 4; }
 function renderTask() {
@@ -122,6 +125,7 @@ function renderTask() {
   $('tkGo').hidden = W.state !== 'idle'; $('tkGo').textContent = 'Начать ' + verb;
   $('tkPause').hidden = W.state === 'idle'; $('tkPause').textContent = W.state === 'pause' ? 'Продолжить' : 'Пауза';
   $('tkEnd').hidden = W.state === 'idle'; $('tkEnd').textContent = 'Завершить ' + verb;
+  $('tkSnap').hidden = W.state !== 'run';
 }
 /* Свечение задания «дышит»: карта перерисовывается несколько раз в секунду, пока задание на экране */
 function glow() {
@@ -145,9 +149,16 @@ async function showTask(sheet, id, keep) {
   if (t.error) { if (!keep) toast(t.error); return; }
   if (!t.points.length) return toast('Место задания определить не по чему: в листе SPS нет ни одного пикета рядом. Загрузите файл проекта с листом SPS.');
   const same = W.task && W.task.sheet === sheet && W.task.id === id;
+  const old = same ? W.task.points : keep && Array.isArray(keep.pts) ? keep.pts : null;
+  if (old && old.length === t.points.length && (keep ? true : W.moved)) { t.points = old.slice(); W.moved = true; }   // пикеты, сдвинутые в этом задании
+  else {
+    W.moved = false;
+    const facts = PREFS.facts || {};                         // снятые раньше пикеты стоят там, где их сняли
+    for (let i = 0; i < t.points.length; i += 4) { const f = facts[factKey(t.line, t.points[i + 2])]; if (f) { t.points[i] = f[0]; t.points[i + 1] = f[1]; t.points[i + 3] = 1; } }
+  }
   W.task = t;
-  if (keep) { W.visited = new Set(keep.visited || []); W.state = keep.state === 'idle' ? 'idle' : 'pause'; }
-  else if (!same) { W.visited = new Set(); W.state = 'idle'; }
+  if (keep) { W.visited = new Set(keep.visited || []); W.state = keep.state === 'idle' ? 'idle' : 'pause'; W.last = keep.last ?? null; W.dir = keep.dir || 0; }
+  else if (!same) { W.visited = new Set(); W.state = 'idle'; W.last = null; W.dir = 0; }
   W.near = null;
   saveSession();
   if (keep) { renderTask(); glow(); return; }
@@ -158,7 +169,7 @@ async function showTask(sheet, id, keep) {
   zoomTask(); glow();
   if (t.est) toast('Координат этих пикетов в SPS нет: место на карте посчитано по соседним пикетам и линиям.');
 }
-function dropTask() { W.task = null; W.visited = new Set(); W.state = 'idle'; W.near = null; saveSession(); renderTask(); draw(); }
+function dropTask() { W.task = null; W.visited = new Set(); W.state = 'idle'; W.near = null; W.last = null; W.dir = 0; W.moved = false; if (window.VOICE) VOICE.listen(false); saveSession(); renderTask(); draw(); }
 function startTask() {
   if (!W.task) return;
   if (F.schematic) return toast('Карта нарисована схемой без координат: идти по ней нельзя. Нужен лист SPS.');
@@ -166,23 +177,75 @@ function startTask() {
   if (!GEO.on && window.geoStart) geoStart();
   saveSession(); renderTask(); glow();
   toast('Идите по пикетам: пикет засчитывается в ' + NEAR + ' метрах от него.');
+  say(`${NOUN[W.task.sheet]} началась. Меня зовут 626. Я буду сопровождать тебя до конца маршрута. ` +
+    `Иди по пикетам задания: в ${NEAR} метрах от пикета я отмечу его сам. Если пикет нужно поставить в другом месте, нажми «Снять пикет здесь». ` +
+    `Если что-то нужно — просто скажи: 626.`);
+  if (window.VOICE) VOICE.listen(true);
+}
+function stepTo(picket) { if (W.last !== null && picket !== W.last) W.dir = picket > W.last ? 1 : -1; W.last = picket; }
+/* Какой пикет по заданию следующий: сосед последнего снятого по ходу движения; в начале - ближний к человеку край задания */
+function nextPicket() {
+  const t = W.task, free = p => p >= t.p1 && p <= t.p2 && !W.visited.has(p) && pointIndex(p) >= 0;
+  if (W.last === null) {
+    const a = pointIndex(t.p1), b = pointIndex(t.p2), p = t.points, xy = GEO.xy;
+    const far = i => i < 0 ? Infinity : Math.hypot(p[i] - xy[0], p[i + 1] - xy[1]);
+    const first = far(a) <= far(b) ? t.p1 : t.p2;
+    W.dir = first === t.p1 ? 1 : -1;
+    for (let q = first; q >= t.p1 && q <= t.p2; q += W.dir) if (free(q)) return q;
+    return null;
+  }
+  const dir = W.dir || 1;
+  for (const d of [dir, -dir]) for (let q = W.last + d; q >= t.p1 && q <= t.p2; q += d) if (free(q)) return q;
+  return null;
+}
+function pointIndex(picket) { const p = W.task.points; for (let i = 0; i < p.length; i += 4) if (p[i + 2] === picket) return i; return -1; }
+/* «Снять пикет здесь»: следующий по заданию пикет ставится туда, где человек стоит. Пикеты дальше, место которых
+   было только посчитано (координат в SPS нет), сдвигаются так же - разбивка продолжается от нового места */
+function snapHere() {
+  if (!W.task || W.state !== 'run') { toast('Сначала начните задание.'); say('Задание не идёт.'); return false; }
+  if (!GEO.xy || !GEO.fix) { toast('Нет положения по GPS: пикет снять не по чему.'); say('Нет сигнала GPS.'); return false; }
+  if (!(GEO.fix.acc <= 50)) { toast('Положение слишком неточное, подождите.'); say('Положение неточное. Подожди.'); return false; }
+  const picket = nextPicket();
+  if (picket === null) { toast('Все пикеты задания уже сняты.'); say('Все пикеты уже сняты.'); return false; }
+  const r1 = v => Math.round(v * 10) / 10, here = [r1(GEO.xy[0]), r1(GEO.xy[1])];
+  const p = W.task.points, i = pointIndex(picket), dx = here[0] - p[i], dy = here[1] - p[i + 1];
+  for (let k = 0; k < p.length; k += 4) if (k !== i && !p[k + 3] && !W.visited.has(p[k + 2])) { p[k] = r1(p[k] + dx); p[k + 1] = r1(p[k + 1] + dy); }
+  p[i] = here[0]; p[i + 1] = here[1]; p[i + 3] = 1;
+  W.visited.add(picket); stepTo(picket); W.moved = true; W.near = null;
+  PREFS.facts = {...(PREFS.facts || {}), [factKey(W.task.line, picket)]: [here[0], here[1], new Date().toISOString(), W.task.sheet]};
+  post('/api/prefs', {facts: PREFS.facts}).catch(() => {});
+  try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { /* не критично */ }
+  saveSession(); renderTask(); draw();
+  toast(`Пикет ${W.task.line} ${picket} снят здесь` + (Math.hypot(dx, dy) >= 1 ? `: сдвиг ${fmtM(Math.hypot(dx, dy))}.` : '.'));
+  say(`${W.task.line} ${picket} готово`);
+  return true;
+}
+window.snapHere = snapHere;
+function pauseTask(on) {
+  if (!W.task || W.state === 'idle') return;
+  W.state = on === undefined ? (W.state === 'pause' ? 'run' : 'pause') : on ? 'pause' : 'run';
+  if (W.state === 'run' && !GEO.on && window.geoStart) geoStart();
+  if (window.VOICE) VOICE.listen(true);
+  saveSession(); renderTask(); glow();
 }
 /* Новое положение с GPS: трек и пикеты задания в круге 10 м */
 function workFix(xy, acc, ts) {
   trackFix(xy, ts);
   if (!W.task || W.state !== 'run' || !(acc <= 50)) return;
   const p = W.task.points;
-  let added = 0, best = null;
+  let added = 0, best = null, got = null;
   for (let i = 0; i < p.length; i += 4) {
     if (W.visited.has(p[i + 2])) continue;
     const d = Math.hypot(p[i] - xy[0], p[i + 1] - xy[1]);
-    if (d <= NEAR) { W.visited.add(p[i + 2]); added++; }
+    if (d <= NEAR) { W.visited.add(p[i + 2]); added++; got = p[i + 2]; }
     else if (!best || d < best.dist) best = {picket: p[i + 2], dist: d};
   }
   W.near = best;
   if (added) {
     try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { /* не критично */ }
+    stepTo(got);
     saveSession();
+    say(`Точка ${W.task.line} ${got}`);
     if (W.visited.size === taskTotal()) toast('Все пикеты задания пройдены. Нажмите «Завершить ' + VERB[W.task.sheet] + '».');
   }
   renderTask();
@@ -221,13 +284,17 @@ async function finishTask() {
   }
   if (j.error) return toast(j.error);
   const u = j.unit === 'пикет' ? picketWord(j.units) : chanWord(j.units);
-  W.task = null; W.visited = new Set(); W.state = 'idle'; saveSession(); renderTask();
+  W.task = null; W.visited = new Set(); W.state = 'idle'; W.last = null; W.dir = 0; W.moved = false; saveSession(); renderTask();
+  say(NOUN[t.sheet] + ' завершена');
+  if (window.VOICE) VOICE.listen(false);
   for (const p of Object.values(Sheets.pages)) if (p.work) dirty[p.name] = true;
   await changed(true);
   toast(`Внесено в журнал: ${u}` + (j.left.length ? `. Осталось заданием: ПП ${j.left.map(r => rangeText(r[0], r[1])).join(', ')}` : '') + '.');
 }
 $('tkGo').onclick = startTask;
-$('tkPause').onclick = () => { W.state = W.state === 'pause' ? 'run' : 'pause'; if (W.state === 'run' && !GEO.on && window.geoStart) geoStart(); saveSession(); renderTask(); glow(); };
+$('tkPause').onclick = () => pauseTask();
+$('tkSnap').onclick = snapHere;
+window.workCmd = {snap: snapHere, pause: () => pauseTask(true), resume: () => pauseTask(false), finish: () => { if (W.task && W.state !== 'idle') finishTask(); }, active: () => !!W.task && W.state !== 'idle'};
 $('tkEnd').onclick = finishTask;
 $('tkClose').onclick = async () => {
   if (W.state !== 'idle' && W.visited.size && !await ask('Убрать задание?', `<p>Пройдено ${nf(W.visited.size)} из ${nf(taskTotal())}. Если убрать задание с карты, пройденное не запишется в журнал.</p>`, 'Убрать')) return;

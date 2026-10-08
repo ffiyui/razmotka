@@ -20,7 +20,7 @@ globalThis.RZ = globalThis.RZ || {};
     return {ok: true};
   }
   function prefs_save(ctx, j) {
-    if (!j || typeof j !== 'object' || Array.isArray(j) || JSON.stringify(j).length > 20000) throw new ValidationError('Настройки не сохранены.');
+    if (!j || typeof j !== 'object' || Array.isArray(j) || JSON.stringify(j).length > 600000) throw new ValidationError('Настройки не сохранены.');
     ctx.db.set('prefs', {...(ctx.db.get('prefs', {}) || {}), ...j});
     return {ok: true};
   }

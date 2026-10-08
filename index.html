@@ -79,6 +79,7 @@
         <div class="tk-sub" id="tkSub"></div>
         <div class="tk-prog" id="tkProg" hidden><i id="tkFill"></i></div>
         <div class="tk-acts"><button type="button" class="btn small main" id="tkGo"></button><button type="button" class="btn small" id="tkPause" hidden>Пауза</button><button type="button" class="btn small" id="tkEnd" hidden></button></div>
+        <button type="button" class="btn small tk-snap" id="tkSnap" hidden>Снять пикет здесь</button>
       </div>
       <div class="recnote" id="recNote" hidden></div>
       <div class="mapnote" id="mapNote"></div>
@@ -234,6 +235,11 @@
         <select id="crsEll"><option value="gsk2011">ГСК-2011</option><option value="krass">Красовского (СК-42, СК-95)</option><option value="wgs84">WGS 84</option></select></div>
         <div><label for="crsZone">Зона Гаусса—Крюгера</label><input type="number" id="crsZone" min="1" max="60" inputmode="numeric"></div></div>
       <div class="dact"><button class="btn main" id="crsSave">Сохранить</button><span class="dnote" id="crsNote"></span></div></div>
+    <div class="card dcard" id="vcCard"><h3>Голосовое сопровождение</h3>
+      <p>Помощник «626» говорит, когда задание началось, какой пикет снят и когда задание завершено. Чтобы дать команду голосом, скажите «626» и после ответа «Слушаю» — команду: «снять точку здесь», «пауза», «продолжить», «завершить».</p>
+      <div class="dctl"><label class="tick"><input type="checkbox" id="vcOn"> Голосовое сопровождение</label></div>
+      <div class="dctl"><label class="tick"><input type="checkbox" id="vcMic"> Слушать команды (микрофон)</label></div>
+      <div class="dact"><button class="btn" id="vcTest">Проверить голос</button><span class="dnote" id="vcNote"></span></div></div>
     <div class="card dcard"><h3>Копия данных</h3>
       <p>Все данные хранятся в памяти этого телефона. Раз в неделю сохраняйте копию в «Файлы» или отправляйте себе: если приложение удалить, данные пропадут.</p>
       <div class="dctl"><input type="file" id="bkFile" accept=".json,application/json"></div>
@@ -292,6 +298,7 @@
 <script src="js/map.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/work.js"></script>
+<script src="js/voice.js"></script>
 <script src="js/tiles.js"></script>
 <script src="js/stats.js"></script>
 <script src="js/check.js"></script>

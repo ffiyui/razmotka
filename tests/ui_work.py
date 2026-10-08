@@ -128,6 +128,9 @@ with sync_playwright() as p:
     ok('касание карты предлагает «Начать разбивку»', page.inner_text('#dYes') == 'Начать разбивку' and 'Л 5009' in page.inner_text('#dTitle'))
     page.click('#dYes'); page.wait_for_function("WORK.state==='run'", timeout=5000)
     ok('работа начата, GPS включён', page.evaluate("GEO.on") and page.is_visible('#tkEnd') and page.inner_text('#tkEnd') == 'Завершить разбивку')
+    said = page.evaluate("VOICE.log[VOICE.log.length-1]")
+    ok('голос: начало работы', said.startswith('Разбивка началась. Меня зовут 626. Я буду сопровождать тебя до конца маршрута.') and said.endswith('Если что-то нужно — просто скажи: 626.'), said)
+    ok('кнопка «Снять пикет здесь» на плашке', page.is_visible('#tkSnap') and page.evaluate("(()=>{const r=document.getElementById('taskBar').getBoundingClientRect();return r.top>0&&r.bottom<=innerHeight})()"))
 
     # ---- идём по пикетам: засчитывается только в круге 10 м
     page.wait_for_function("GEO.fix", timeout=8000); page.wait_for_timeout(400)       # первое положение от самого браузера уже пришло
@@ -135,6 +138,7 @@ with sync_playwright() as p:
     ok('в 30 метрах пикет не засчитан', page.evaluate("WORK.visited.size") == 0 and '30 м' in page.inner_text('#tkSub'), page.inner_text('#tkSub'))
     gps(1, 0, 6, 6)
     ok('в 8,5 м от пикета — засчитан', page.evaluate("[...WORK.visited]") == [1000])
+    ok('голос: «Точка 5009 1000»', page.evaluate("VOICE.log[VOICE.log.length-1]") == 'Точка 5009 1000')
     for i in range(1, 12):
         gps(1, i, 3, -2)
     gps(1, 11, 60, 80)                                         # отошёл в сторону: ничего не меняется
@@ -178,6 +182,41 @@ with sync_playwright() as p:
     ok('полное выполнение', 'Задание пройдено полностью' in page.inner_text('#dBody'))
     page.click('#dYes'); page.wait_for_function("S.field===30", timeout=10000)
     ok('размотка по заданию попала на поле', page.evaluate("S.drafts.razm") == 0)
+    ok('голос: «Размотка завершена»', page.evaluate("VOICE.log[VOICE.log.length-1]") == 'Размотка завершена')
+
+    # ---- «Снять пикет здесь» и команды голосом
+    go('razb', "Sheets.pages.razb.loaded"); page.locator('#p-razb .tkrow', has_text='5025').locator('button').click()
+    page.wait_for_function("document.querySelector('#p-field.on') && WORK.task && WORK.task.line===5025", timeout=10000); page.wait_for_timeout(300)
+    ok('до начала кнопки «Снять пикет здесь» нет', page.is_hidden('#tkSnap'))
+    page.click('#tkGo'); page.wait_for_function("WORK.state==='run'")
+    gps(3, 0, 40, 30)
+    ok('в 50 м от расчётного места пикет сам не снят', page.evaluate("WORK.visited.size") == 0)
+    page.click('#tkSnap'); page.wait_for_timeout(200)
+    r = page.evaluate("[[...WORK.visited],WORK.task.points.slice(0,8),VOICE.log[VOICE.log.length-1]]")
+    ok('кнопка сняла следующий пикет там, где стоит человек, остальные сдвинулись', r == [[1000], [base[0] + 40, base[1] + 630, 1000, 1, base[0] + 65, base[1] + 630, 1001, 0], '5025 1000 готово'], r)
+    shot('ios_snap')
+    gps(3, 1, 40, 55)
+    n = page.evaluate("VOICE.log.length")
+    ok('без слова «626» команда не выполняется', page.evaluate("VOICE.hear('снять точку здесь')") is None and page.evaluate("WORK.visited.size") == 1)
+    ok('«626» — «Слушаю»', page.evaluate("VOICE.hear('626')") == 'wake' and page.evaluate("VOICE.log[VOICE.log.length-1]") == 'Слушаю')
+    ok('команда после «Слушаю»', page.evaluate("VOICE.hear('Снять точку здесь.')") == 'snap')
+    r = page.evaluate("[[...WORK.visited],WORK.task.points.slice(4,12),VOICE.log[VOICE.log.length-1]]")
+    ok('голосом снят следующий пикет', r == [[1000, 1001], [base[0] + 65, base[1] + 655, 1001, 1, base[0] + 90, base[1] + 655, 1002, 0], '5025 1001 готово'], r)
+    gps(3, 2, 42, 52)
+    ok('дальше пикеты снимаются сами от нового места', page.evaluate("[...WORK.visited]") == [1000, 1001, 1002] and page.evaluate("VOICE.log[VOICE.log.length-1]") == 'Точка 5025 1002')
+    ok('«шестьсот двадцать шесть, пауза»', page.evaluate("VOICE.hear('шестьсот двадцать шесть, пауза')") == 'pause' and page.evaluate("WORK.state") == 'pause' and page.is_hidden('#tkSnap'))
+    ok('«626 продолжить»', page.evaluate("VOICE.hear('626 продолжить')") == 'resume' and page.evaluate("WORK.state") == 'run')
+    page.wait_for_timeout(900); page.reload(); page.wait_for_function("typeof WORK==='object' && WORK.task && WORK.visited.size===3", timeout=20000)
+    page.evaluate("window.BASE=%s" % json.dumps(base))
+    ok('сдвинутые пикеты переживают перезапуск', page.evaluate("WORK.task.points.slice(12,16)") == [base[0] + 115, base[1] + 655, 1003, 0], page.evaluate("WORK.task.points.slice(8,16)"))
+    go('data'); page.wait_for_timeout(200)
+    ok('в настройках выключатель голоса, включён', page.is_checked('#vcOn'))
+    page.uncheck('#vcOn'); page.wait_for_timeout(200)
+    go('field', 'F && F.sps.length>0'); page.click('#tkPause'); page.wait_for_function("WORK.state==='run'")
+    n = page.evaluate("VOICE.log.length"); gps(3, 3, 40, 55)
+    ok('голос выключен: пикет снят молча', page.evaluate("WORK.visited.size") == 4 and page.evaluate("VOICE.log.length") == n and page.evaluate("fetch('/api/prefs').then(r=>r.json()).then(j=>j.voice)") is False)
+    go('data'); page.check('#vcOn'); page.wait_for_timeout(200)
+    go('field', 'F && F.sps.length>0'); page.click('#tkClose'); page.wait_for_selector('#veil[style*=flex]'); page.click('#dYes'); page.wait_for_timeout(300)
 
     # ---- трек
     go('field', 'F && F.sps.length>0')
