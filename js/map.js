@@ -21,9 +21,19 @@ const MAP_DEFAULT = {
 const LAYER_TITLE = {sps: 'Пикеты SPS', field: 'Лежит на поле', razm: 'Размотано за период', podm: 'Подмотано за период', left: 'Оставленное оборудование', lost: 'Утерянное оборудование'};
 const cloneStyle = () => JSON.parse(JSON.stringify(MAP_DEFAULT));
 let MS = cloneStyle(), PREFS = {};
+/* Свои листы работ (GeoLink): у каждого свой слой; вид по умолчанию - по очереди из набора цветов */
+const CUSTOM_COLORS = ['#3FB950', '#DB61A2', '#39C5CF', '#E3B341', '#FF7B72', '#79C0FF', '#D2A8FF'];
+const isLayerCustom = k => /^c[a-z0-9]{2,24}$/.test(k) && !MAP_DEFAULT[k];
+function layerDefault(k) {
+  if (MAP_DEFAULT[k]) return JSON.parse(JSON.stringify(MAP_DEFAULT[k]));
+  let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return {c: CUSTOM_COLORS[h % CUSTOM_COLORS.length], shape: 'circle', k: 1.5};
+}
+const msOf = k => MS[k] || (MS[k] = layerDefault(k));
+const layerTitle = k => LAYER_TITLE[k] || (typeof navTitle === 'function' && navTitle(k)) || 'Слой';
 function paintSwatches() {
-  document.querySelectorAll('.sw').forEach(b => { const st = MS[b.dataset.layer]; b.innerHTML = shapeSvg(st.shape, st.c, 14); });
-  $('swReset').hidden = JSON.stringify(MS) === JSON.stringify(MAP_DEFAULT);
+  document.querySelectorAll('.sw').forEach(b => { const st = msOf(b.dataset.layer); b.innerHTML = shapeSvg(st.shape, st.c, 14); });
+  $('swReset').hidden = Object.keys(MS).every(k => JSON.stringify(MS[k]) === JSON.stringify(layerDefault(k)));
 }
 async function loadMapStyle() {
   try {
@@ -36,6 +46,13 @@ async function loadMapStyle() {
       if (SHAPES[v.shape]) MS[k].shape = v.shape;
       if (v.k >= .4 && v.k <= 5) MS[k].k = +v.k;
     }
+    for (const [k, v] of Object.entries(saved)) {                   // слои своих листов
+      if (!isLayerCustom(k) || !v || typeof v !== 'object') continue;
+      const st = msOf(k);
+      if (/^#[0-9a-f]{6}$/i.test(v.c || '')) st.c = v.c;
+      if (SHAPES[v.shape]) st.shape = v.shape;
+      if (v.k >= .4 && v.k <= 5) st.k = +v.k;
+    }
   } catch (err) { /* вид по умолчанию */ }
   paintSwatches();
 }
@@ -44,15 +61,16 @@ function styleChanged() {
   sprites.clear(); paintSwatches(); LC = null; draw();
   clearTimeout(styleTimer); styleTimer = setTimeout(() => post('/api/prefs', {map_style: MS}).catch(() => {}), 400);
 }
-/* Окно слоя: форма, размер, цвет */
-function openLayerStyle(button) {
-  const key = button.dataset.layer, st = MS[key];
-  const html = () => `<div class="pal-title">${LAYER_TITLE[key]}: форма</div><div class="shape-grid">` +
+/* Окно слоя: форма, размер, цвет. inline - панель внутри разворачиваемой строки легенды вместо всплывающего окна */
+function openLayerStyle(button, inline) {
+  const key = button.dataset.layer, st = msOf(key);
+  const html = () => `<div class="pal-title">${esc(layerTitle(key))}: форма</div><div class="shape-grid">` +
     Object.keys(SHAPES).map(n => `<button type="button" class="shape-b${n === st.shape ? ' on' : ''}" data-shape="${n}" title="${SHAPES[n].title}">${shapeSvg(n, st.c, 16)}</button>`).join('') + '</div>' +
     `<div class="pal-title">Размер</div><label class="range">мельче<input type="range" class="st-size" min="0.4" max="5" step="0.1" value="${st.k}" style="flex:1">крупнее</label>` +
     `<div class="pal-title">Цвет</div>${paletteHtml(st.c)}` +
     `<div class="pal-row"><button type="button" class="pal-none">Как было</button><label class="pal-own">Свой<input type="color" value="${st.c}"></label></div>`;
-  const {el} = popover(button, html());
+  let el;
+  if (inline) { el = inline; el.innerHTML = html(); } else el = popover(button, html()).el;
   const bind = () => {
     el.querySelector('.st-size').oninput = e => { st.k = +e.target.value; styleChanged(); };
     el.querySelector('input[type=color]').oninput = e => { st.c = e.target.value; styleChanged(); el.querySelectorAll('.shape-b').forEach(b => { b.innerHTML = shapeSvg(b.dataset.shape, st.c, 16); }); };
@@ -63,13 +81,45 @@ function openLayerStyle(button) {
     if (!b) return;
     if (b.dataset.shape) st.shape = b.dataset.shape;
     else if (b.dataset.c) st.c = b.dataset.c;
-    else if (b.classList.contains('pal-none')) Object.assign(st, JSON.parse(JSON.stringify(MAP_DEFAULT[key])));
+    else if (b.classList.contains('pal-none')) Object.assign(st, layerDefault(key));
     else return;
     styleChanged(); el.innerHTML = html(); bind();
   });
 }
 document.querySelectorAll('.sw').forEach(b => { b.onclick = e => { e.preventDefault(); openLayerStyle(b); }; });
-$('swReset').onclick = () => { MS = cloneStyle(); styleChanged(); };
+/* Разворачиваемые строки легенды: стрелка справа открывает настройку вида слоя прямо в списке */
+function legendExpanders(root) {
+  root.querySelectorAll('label').forEach(lb => {
+    const sw = lb.querySelector('.sw');
+    if (!sw || lb.querySelector('.lg-more')) return;
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'lg-more'; b.setAttribute('aria-label', 'Настроить вид слоя'); b.setAttribute('aria-expanded', 'false');
+    b.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>';
+    lb.appendChild(b);
+    b.onclick = e => {
+      e.preventDefault(); e.stopPropagation();
+      let p = lb.nextElementSibling && lb.nextElementSibling.classList.contains('lg-panel') ? lb.nextElementSibling : null;
+      if (p) { p.remove(); b.setAttribute('aria-expanded', 'false'); return; }
+      p = document.createElement('div'); p.className = 'lg-panel';
+      lb.after(p); b.setAttribute('aria-expanded', 'true');
+      openLayerStyle(sw, p);
+    };
+  });
+}
+legendExpanders(document.querySelector('.legend'));
+/* Слои своих листов работ: строка на каждый лист с выполненными пикетами */
+const CL_OFF = new Set();
+function customLegend() {
+  const box = $('lgCustom'), c = F.custom || {};
+  const ids = Object.keys(c).filter(id => c[id].length);
+  box.innerHTML = ids.map(id => `<label data-c="${id}"><input type="checkbox"${CL_OFF.has(id) ? '' : ' checked'}><button type="button" class="sw" data-layer="${id}" title="Форма, размер и цвет точек"></button>` +
+    `${esc(layerTitle(id))} <span class="lg-n">${nf(c[id].length / 6)}</span></label>`).join('');
+  box.querySelectorAll('.sw').forEach(b => { b.onclick = e => { e.preventDefault(); openLayerStyle(b); }; });
+  box.querySelectorAll('input').forEach(i => { i.onchange = () => { const id = i.closest('label').dataset.c; if (i.checked) CL_OFF.delete(id); else CL_OFF.add(id); draw(); }; });
+  legendExpanders(box);
+  paintSwatches();
+}
+$('swReset').onclick = () => { MS = cloneStyle(); styleChanged(); document.querySelectorAll('.lg-panel').forEach(p => p.remove()); };
 const colorsReady = loadMapStyle();
 
 /* Скрытие панели инструментов: карта занимает всю ширину, вернуть панель можно кнопкой «три точки» на карте.
@@ -130,13 +180,14 @@ async function loadField() {
   $('lgLost').style.display = F.lost.length ? '' : 'none';
   F.staked = F.staked || []; F.plan = F.plan || [];             // настольный сервер прежней версии их не присылает
   $('lgPlan').style.display = F.plan.length ? '' : 'none';
+  F.custom = F.custom || {}; customLegend();
   if (typeof loadDxf === 'function') { await loadDxf(); await loadTracks(); }
   $('mapNote').textContent = F.schematic ? 'Схема по номерам линий и пикетов. Заполните лист SPS, чтобы карта строилась в координатах.' : '';
   $('uBtn').disabled = F.schematic;
   $('uBtn').title = F.schematic ? 'Подложка привязывается к координатам листа SPS: сначала заполните его' : '';
   $('uList').style.display = F.schematic ? 'none' : '';
 
-  BSETS = F.sps.length ? [[F.sps, 2]] : [[F.field, 6], [F.left, 4], [F.lost, 4], [F.staked, 6], [F.plan, 4]];
+  BSETS = F.sps.length ? [[F.sps, 2]] : [[F.field, 6], [F.left, 4], [F.lost, 4], [F.staked, 6], [F.plan, 4], ...Object.values(F.custom).map(a => [a, 6])];
   B = bounds(BSETS);
   if (!V.restored) { V.restored = true; setAngle(+PREFS.map_tilt || 0); }      // наклон прошлого сеанса
   $('mLevel').disabled = !B;
@@ -280,7 +331,7 @@ function layer(a, step, st, z) {
 let LC = null, CULL = null, lcTimer = 0;
 const LC_MARGIN = .3;
 const layersKey = () => ['lSps', 'lPlan', 'lRazb', 'lField', 'lPodm', 'lRazm', 'lLeft', 'lLost'].map(id => ($(id).checked ? 1 : 0)).join('') +
-  DX.layers.map(l => (l.visible ? 1 : 0) + (l.labels ? 1 : 0) + l.color).join('');
+  DX.layers.map(l => (l.visible ? 1 : 0) + (l.labels ? 1 : 0) + l.color).join('') + [...CL_OFF].join(',');
 function drawPoints(d, w, h) {
   const mx = Math.round(w * LC_MARGIN), my = Math.round(h * LC_MARGIN), W = Math.ceil((w + 2 * mx) * d), H = Math.ceil((h + 2 * my) * d);
   const c = LC && LC.canvas.width === W && LC.canvas.height === H ? LC.canvas : document.createElement('canvas');
@@ -296,6 +347,7 @@ function drawPoints(d, w, h) {
     if ($('lSps').checked) layer(F.sps, 2, MS.sps, z);
     if ($('lPlan').checked) layer(F.plan, 4, MS.plan, z);
     if ($('lRazb').checked) layer(F.staked, 6, MS.razb, z);       // разбитый пикет крупнее оборудования: виден каймой вокруг него
+    for (const [id, a] of Object.entries(F.custom || {})) if (!CL_OFF.has(id)) layer(a, 6, msOf(id), z);   // свои листы работ
     if ($('lField').checked) layer(F.field, 6, MS.field, z);
     if ($('lPodm').checked) layer(P.podm, 4, MS.podm, z);
     if ($('lRazm').checked) layer(P.razm, 4, MS.razm, z);
@@ -355,7 +407,7 @@ const redraw = () => { if (!drawRaf) drawRaf = requestAnimationFrame(() => { dra
 const local = e => { const r = cv.getBoundingClientRect(); return {x: e.clientX - r.left, y: e.clientY - r.top}; };
 cv.onpointerdown = e => {
   try { cv.setPointerCapture(e.pointerId); } catch (err) { /* не критично */ }
-  if (e.pointerType === 'mouse') { drag = {x: e.clientX, y: e.clientY}; return; }
+  if (e.pointerType === 'mouse') { drag = {x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY}; return; }
   touches.set(e.pointerId, local(e));
   $('tip').style.display = 'none';
   if (touches.size === 1) { const p = local(e); tap = {x: p.x, y: p.y, t: Date.now(), moved: false, lx: p.x, ly: p.y}; pinch = null; }
@@ -391,7 +443,10 @@ function moveTouch(e) {
   else { tap.lx = tap.x; tap.ly = tap.y; }
 }
 function liftTouch(e) {
-  if (e.pointerType === 'mouse') { drag = null; return; }
+  if (e.pointerType === 'mouse') {                         // щелчок мышью без сдвига: метки (поставить или открыть)
+    if (e.type === 'pointerup' && drag && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5 && window.marksTap) marksTap(local(e));
+    drag = null; return;
+  }
   touches.delete(e.pointerId);
   if (pinch) {
     if (touches.size < 2) {                                 // остался один палец: продолжает сдвиг без скачка
@@ -436,6 +491,7 @@ function onTap(p) {
     lastTap = null; $('tip').style.display = 'none'; zoomAt(p.x, p.y, 2); return;
   }
   lastTap = {x: p.x, y: p.y, t: now};
+  if (window.marksTap && marksTap(p)) return;               // метки: поставить новую или открыть ту, что под пальцем
   if (window.workTap && workTap(p)) return;                 // задание на карте: касание предлагает начать работу
   showTip(p.x, p.y, 24);                                    // палец неточнее мыши: радиус поиска точки больше
 }
@@ -455,6 +511,7 @@ function showTip(mx, my, radius) {
   if ($('lLost').checked) nearest(F.lost, 4, mx, my, best);
   if ($('lRazb').checked) nearest(F.staked, 6, mx, my, best);
   if ($('lPlan').checked) nearest(F.plan, 4, mx, my, best);
+  for (const [id, a] of Object.entries(F.custom || {})) if (!CL_OFF.has(id)) { const q = best.a; nearest(a, 6, mx, my, best); if (best.a !== q) best.cid = id; }
   nearest(FIND.pts, 4, mx, my, best);
   const t = $('tip');
   if (best.i < 0) {                             // пикета под пальцем нет: может быть, это контур DXF
@@ -472,6 +529,7 @@ function showTip(mx, my, radius) {
   else if (a === F.lost) s += ' — утерянное оборудование';
   else if (a === F.staked) s += ' — разбит ' + dru(F.dates[a[i + 4]]) + ', ' + F.names[a[i + 5]];
   else if (a === F.plan) s += ' — задание на разбивку';
+  else if (best.cid && a === F.custom[best.cid]) s += ' — ' + layerTitle(best.cid) + ' ' + dru(F.dates[a[i + 4]]) + ', ' + F.names[a[i + 5]];
   else if (a === FIND.pts) s += ' — найден';
   else s += a === P.razm ? ' — размотано за период' : ' — подмотано за период';
   t.textContent = s; t.style.display = 'block';

@@ -191,7 +191,9 @@ with sync_playwright() as p:
     ok('полное выполнение', 'Задание пройдено полностью' in page.inner_text('#dBody'))
     page.click('#dYes'); page.wait_for_function("S.field===30", timeout=10000)
     ok('размотка по заданию попала на поле', page.evaluate("S.drafts.razm") == 0)
-    ok('звук при завершении', page.evaluate("ui.log[ui.log.length-1]") == 'complete')
+    ok('анимация завершения: пикеты загораются на карте по очереди', page.evaluate("!!(window.FINISH && FINISH.a && FINISH.a.pts.length===10)"))
+    page.wait_for_function("ui.log[ui.log.length-1]==='complete' && !FINISH.a", timeout=8000)
+    ok('звук при завершении: щелчки по пикетам и итоговый', page.evaluate("ui.log[ui.log.length-1]") == 'complete' and page.evaluate("ui.log.slice(-12).filter(x=>x==='checkpoint').length") >= 5, page.evaluate("ui.log.slice(-14)"))
 
     # ---- «Снять пикет здесь» и звуки
     go('razb', "Sheets.pages.razb.loaded"); page.locator('#p-razb .tkrow', has_text='5025').locator('button').click()
@@ -204,6 +206,11 @@ with sync_playwright() as p:
     r = page.evaluate("[[...WORK.visited],WORK.task.points.slice(0,8),ui.log[ui.log.length-1]]")
     ok('кнопка сняла следующий пикет там, где стоит человек, остальные сдвинулись', r == [[1000], [base[0] + 40, base[1] + 630, 1000, 1, base[0] + 65, base[1] + 630, 1001, 0], 'snap'], r)
     shot('ios_snap')
+    page.click('#tkUndo'); page.wait_for_timeout(200)
+    r2 = page.evaluate("[[...WORK.visited],WORK.task.points.slice(0,4),ui.log[ui.log.length-1]]")
+    ok('отмена: снятый вне места пикет возвращён, точка на расчётном месте', r2[0] == [] and r2[1][2:] == [1000, 0] and r2[1][:2] != [base[0] + 40, base[1] + 630] and r2[2] == 'toggle-off', r2)
+    page.click('#tkSnap'); page.wait_for_timeout(200)
+    ok('снова снят после отмены', page.evaluate("[[...WORK.visited],WORK.task.points.slice(0,4)]") == [[1000], [base[0] + 40, base[1] + 630, 1000, 1]])
     gps(3, 1, 40, 55)
     page.click('#tkSnap'); page.wait_for_timeout(200)
     r = page.evaluate("[[...WORK.visited],WORK.task.points.slice(4,12),ui.log[ui.log.length-1]]")
@@ -326,7 +333,7 @@ with sync_playwright() as p:
     # ---- оформление iPhone: тёмная тема, нижняя панель, главная, настройки, карта
     page.evaluate("location.hash='#home'"); page.wait_for_timeout(700)
     ok('нижняя панель: Главная, Карта, Данные, Настройки', page.evaluate("[...document.querySelectorAll('#tabbar a')].map(a=>a.textContent.trim())") == ['Главная', 'Карта', 'Данные', 'Настройки'] and page.is_visible('#tabbar'))
-    rows = page.evaluate("[...document.querySelectorAll('#homeMenu .gh-row')].map(a=>a.dataset.p)")
+    rows = page.evaluate("[...document.querySelectorAll('#homeMenu .gh-row, #homeMenu .jc-main')].map(a=>a.dataset.p)")
     ok('на главной меню разделов без «Карты» и «Данных»', 'field' not in rows and 'data' not in rows and 'razm' in rows and 'tracks' in rows, rows)
     ok('в боковом меню тоже нет «Карты» и «Данных»', page.evaluate("!document.querySelector('#navlist a[data-p=field]') && !document.querySelector('#navlist a[data-p=data]')"))
     page.click('#tabbar a[data-tab=settings]'); page.wait_for_function("document.querySelector('#p-settings.on')")

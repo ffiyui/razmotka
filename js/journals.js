@@ -5,7 +5,7 @@
    - На листе журнала сверху вкладки его листов: значок, название, карандаш у открытой, «+» - новый лист.
    Свои листы хранит движок (engine/sheets-core.js, register_custom; /api/custom), раскладку и значки - меню (/api/ui). */
 const GL_LOGO = '<svg class="gl-logo" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-  '<path d="M12 21.5s7.5-6.6 7.5-12.4a7.5 7.5 0 0 0-15 0c0 5.8 7.5 12.4 7.5 12.4z"/><circle cx="9.3" cy="9.2" r="1.7"/><circle cx="14.7" cy="9.2" r="1.7"/><path d="M11 9.2h2"/></svg>';
+  '<path d="M12 21.5s7.5-6.6 7.5-12.4a7.5 7.5 0 0 0-15 0c0 5.8 7.5 12.4 7.5 12.4z"/><circle cx="9.2" cy="9.2" r="2.3"/><circle cx="14.8" cy="9.2" r="2.3" stroke="var(--c-blue)"/></svg>';
 const PENCIL = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5l2.5 2.5L6 12.5H3.5V10z"/><path d="M9.5 4l2.5 2.5"/></svg>';
 const BUILTIN_GROUPS = new Set(['gfo', 'tgo', 'rep']);
 const PAGE_ICON = {razm: 'reel', podm: 'rewind', razb: 'stake', oo: 'box', snake: 'route', info: 'info', workers: 'idcard', topo: 'idcard',

@@ -186,7 +186,7 @@ class Grid {
     this.canvas.style.width = this.width + 'px';
     this.head.innerHTML = '<div class="gx-corner"></div>' + this.cols.map((c, i) =>
       `<div class="gx-h${c.kind === 'calc' ? ' calc' : ''}${c.note ? ' note' : ''}" style="width:${c.width}px"${c.note ? ` title="${esc(c.note)}"` : ''}>` +
-      `<span>${esc(c.title)}</span><i class="gx-rs" data-c="${i}"></i></div>`).join('');
+      `<span>${esc(c.title)}</span>${this.o.onHeader ? `<i class="gx-flt${this.flt && this.flt.has(i) ? ' on' : ''}" data-c="${i}" aria-hidden="true"></i>` : ''}<i class="gx-rs" data-c="${i}"></i></div>`).join('');
     this.render();
   }
   /* Оформление ячейки -> стиль. b жирный, l тонкий, i курсив, u подчёркнутый, c цвет текста, g заливка */
@@ -311,6 +311,7 @@ class Grid {
       if (this._ptype && this._ptype !== 'mouse') return;         // касание: обрабатывается ниже (pointer + click)
       if (e.button !== 0 || e.target === this.input) return;
       if (this._markTap(e)) return e.preventDefault();
+      if (e.target.classList.contains('gx-flt') && this.o.onHeader) { e.preventDefault(); return this.o.onHeader(+e.target.dataset.c); }   // мышью - значок воронки
       const h = this._hit(e);
       if (h.vx > h.w || h.vy > h.h) return;                       // полоса прокрутки
       e.preventDefault();
@@ -405,6 +406,7 @@ class Grid {
     if (this.editing) this.commitEdit();
     const lastRow = Math.max(this.view.length - 1, 0), lastCol = this.cols.length - 1, ext = this.selectMode;
     if (h.zone === 'corner') { this.a = {r: 0, c: 0}; this.f = {r: lastRow, c: lastCol}; }
+    else if (h.zone === 'col' && !ext && this.o.onHeader) { this.o.onHeader(h.c); return; }      // заголовок - кнопка: барабан фильтра (js/wheel.js)
     else if (h.zone === 'col') { if (!ext) this.a = {r: 0, c: h.c}; this.f = {r: lastRow, c: h.c}; }
     else if (h.zone === 'row') { if (!ext) this.a = {r: h.r, c: 0}; this.f = {r: h.r, c: lastCol}; }
     else {

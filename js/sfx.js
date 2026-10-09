@@ -58,6 +58,18 @@
   };
   window.ui = U;
 
+  /* Звук нажатий: короткий щелчок на кнопках, вкладках, ссылках меню и переключателях (PREFS.tap_sound) */
+  const tapOn = () => on() && !(typeof PREFS !== 'undefined' && PREFS && PREFS.tap_sound === false);
+  let lastTap = 0;
+  document.addEventListener('click', e => {
+    if (!tapOn() || !e.isTrusted) return;
+    const el = e.target.closest && e.target.closest('button, a[href], .jt, .jcard, [role="tab"], input[type="checkbox"], input[type="radio"], select, summary');
+    if (!el || el.disabled || el.dataset.nosnd !== undefined) return;
+    const now = performance.now(); if (now - lastTap < 60) return; lastTap = now;
+    if (el.matches('input[type="checkbox"]')) U.play(el.checked ? 'toggle-on' : 'toggle-off');
+    else U.play('press');
+  }, true);
+
   // ---------------------------------------------------------------- настройки
   const $ = id => document.getElementById(id);
   async function init() {
@@ -68,6 +80,9 @@
     box.onchange = () => { PREFS.sound = box.checked; sel.disabled = !box.checked; post('/api/prefs', {sound: PREFS.sound}).catch(() => {}); if (box.checked) U.play('toggle-on'); };
     sel.onchange = () => { PREFS.sound_style = sel.value; post('/api/prefs', {sound_style: PREFS.sound_style}).catch(() => {}); preload(); U.play('checkpoint', true); };
     $('sndTest').onclick = () => U.play('checkpoint', true);
+    const tap = $('tapSnd'), an = $('animOn');
+    if (tap) { tap.checked = PREFS.tap_sound !== false; tap.onchange = () => { PREFS.tap_sound = tap.checked; post('/api/prefs', {tap_sound: tap.checked}).catch(() => {}); }; }
+    if (an) { an.checked = PREFS.finish_anim !== false; an.onchange = () => { PREFS.finish_anim = an.checked; post('/api/prefs', {finish_anim: an.checked}).catch(() => {}); }; }
   }
   init();
 })();

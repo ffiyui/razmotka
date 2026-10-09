@@ -82,7 +82,7 @@ function iconImage(name, color, px) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${i[2]}</svg>`;
   const img = new Image();
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-  img.onload = () => { if (typeof redraw === 'function') redraw(); };
+  img.onload = () => { if (typeof draw === 'function') draw(); };
   iconImgCache.set(key, img);
   return img;
 }

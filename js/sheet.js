@@ -100,6 +100,7 @@ class SheetPage {
       onFind: () => { const t = el.querySelector('.f-text'); t.focus(); t.select(); },
       onMode: on => { const b = el.querySelector('.tb[data-t=select]'); if (b) b.classList.toggle('on', on); },
       pasteBox: () => this.pasteBox(),
+      onHeader: c => this.wheelFilter(c),
       mark: meta.kind !== 'workers' ? null : {             // галочка у фамилии: кто работает на этом телефоне (js/work.js)
         can: row => row.v[1] !== null && String(row.v[1]).trim() !== '',
         on: row => typeof meName === 'function' && !!meName() && String(row.v[1]).trim().toLowerCase() === meName().toLowerCase(),
@@ -184,16 +185,38 @@ class SheetPage {
     el.querySelector('input').addEventListener('input', e => pick(e.target.value, true));
     el.querySelector('input').addEventListener('change', () => { close(); this.grid.focus(); });
   }
-  /* Фильтр: показываются строки, где текст найден в выбранном столбце (или в любом) и подходит состояние */
+  /* Барабан по заголовку столбца: значения столбца, выбранное - фильтр «равно» (вместе с поиском и состоянием) */
+  async wheelFilter(c) {
+    const g = this.grid, col = g.cols[c], seen = new Map();
+    for (const row of g.rows) {
+      if (g.isBlank(row)) continue;
+      const t = g.text(row, c);
+      if (!seen.has(t)) seen.set(t, row.v[c]);
+    }
+    const num = ['int', 'num', 'calc'].includes(col.kind);
+    const items = [...seen].sort((a, b) => (a[0] === '' ? 1 : b[0] === '' ? -1 : num ? (+a[1] || 0) - (+b[1] || 0) : col.kind === 'date' ? String(a[1]).localeCompare(String(b[1])) : a[0].localeCompare(b[0], 'ru')))
+      .map(([t]) => ({v: t, label: t === '' ? '(пусто)' : t}));
+    const cur = this.wheel && this.wheel[c];
+    const v = await openWheel({title: col.title, items, value: cur === undefined ? (items[0] && items[0].v) : cur});
+    if (v === undefined) return;
+    this.wheel = this.wheel || {};
+    if (v === null) delete this.wheel[c]; else this.wheel[c] = v;
+    this.applyFilter();
+  }
+  /* Фильтр: показываются строки, где текст найден в выбранном столбце (или в любом), подходит состояние
+     и значения столбцов, выбранные барабаном */
   applyFilter() {
     const q = s => this.el.querySelector(s), g = this.grid;
     const text = q('.f-text').value.trim().toLowerCase(), col = q('.f-col').value, state = q('.f-state') ? q('.f-state').value : '';
     const cols = col === '' ? g.cols.map((c, i) => i) : [+col];
-    const active = !!(text || state);
+    const wheel = Object.entries(this.wheel || {}).map(([c, v]) => [+c, v]);
+    const active = !!(text || state || wheel.length);
+    g.flt = new Set(wheel.map(w => w[0])); g.layout();
     g.setFilter(!active ? null : row => {
       if (state === 'done' && !row.done) return false;
       if (state === 'got' && (row.done || !row.from)) return false;
       if (state === 'draft' && (row.done || g.isBlank(row))) return false;
+      for (const [c, v] of wheel) if (g.isBlank(row) || g.text(row, c) !== v) return false;
       return !text || cols.some(c => g.text(row, c).toLowerCase().includes(text));
     });
     this.filtered = active;
@@ -205,7 +228,7 @@ class SheetPage {
   clearFilter() {
     const q = s => this.el.querySelector(s);
     if (!this.filtered && !q('.f-text').value) return;
-    q('.f-text').value = ''; q('.f-col').value = '';
+    q('.f-text').value = ''; q('.f-col').value = ''; this.wheel = {};
     if (q('.f-state')) q('.f-state').value = '';
     this.applyFilter();
   }

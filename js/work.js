@@ -74,7 +74,8 @@ function workSheetHook(page) {
 }
 
 /* ---------- задание на карте и его выполнение ---------- */
-const W = {task: null, visited: new Set(), state: 'idle', near: null, timer: 0, last: null, dir: 0, moved: false};
+const W = {task: null, visited: new Set(), state: 'idle', near: null, timer: 0, last: null, dir: 0, moved: false, hist: [], ignore: new Set(), order: []};
+const resetSteps = () => { W.hist = []; W.ignore = new Set(); W.order = []; };
 Object.defineProperty(W, 'radius', {get: () => { const r = +PREFS.task_radius; return r >= RAD_MIN && r <= RAD_MAX ? r : NEAR; }});   // state: idle | run | pause
 window.WORK = W;
 const taskColor = () => cssVar({razm: '--razm', podm: '--blue', razb: '--razb'}[W.task.sheet] || '--c-green') || '#3FB950';
@@ -131,6 +132,9 @@ function renderTask() {
   $('tkPause').hidden = W.state === 'idle'; $('tkPause').textContent = W.state === 'pause' ? 'Продолжить' : 'Пауза';
   $('tkEnd').hidden = W.state === 'idle'; $('tkEnd').textContent = 'Завершить ' + verb;
   $('tkSnap').hidden = W.state !== 'run';
+  const st = W.hist[W.hist.length - 1];
+  $('tkUndo').hidden = W.state === 'idle' || !st;
+  if (st) $('tkUndo').textContent = '↶ ПП ' + st.picket;
   if (document.activeElement !== $('tkRad')) $('tkRad').value = W.radius;
   $('tkRadV').textContent = W.radius + ' м';
   if (bar.dataset.task !== t.sheet + t.id) { bar.dataset.task = t.sheet + t.id; bar.classList.toggle('min', remember('tk_min') === '1'); }
@@ -165,8 +169,8 @@ async function showTask(sheet, id, keep) {
     for (let i = 0; i < t.points.length; i += 4) { const f = facts[factKey(t.line, t.points[i + 2])]; if (f) { t.points[i] = f[0]; t.points[i + 1] = f[1]; t.points[i + 3] = 1; } }
   }
   W.task = t;
-  if (keep) { W.visited = new Set(keep.visited || []); W.state = keep.state === 'idle' ? 'idle' : 'pause'; W.last = keep.last ?? null; W.dir = keep.dir || 0; }
-  else if (!same) { W.visited = new Set(); W.state = 'idle'; W.last = null; W.dir = 0; }
+  if (keep) { W.visited = new Set(keep.visited || []); resetSteps(); W.order = [...W.visited]; W.state = keep.state === 'idle' ? 'idle' : 'pause'; W.last = keep.last ?? null; W.dir = keep.dir || 0; }
+  else if (!same) { W.visited = new Set(); resetSteps(); W.state = 'idle'; W.last = null; W.dir = 0; }
   W.near = null;
   saveSession();
   if (keep) { renderTask(); glow(); return; }
@@ -177,7 +181,7 @@ async function showTask(sheet, id, keep) {
   zoomTask(); glow();
   if (t.est) toast('Координат этих пикетов в SPS нет: место на карте посчитано по соседним пикетам и линиям.');
 }
-function dropTask() { W.task = null; W.visited = new Set(); W.state = 'idle'; W.near = null; W.last = null; W.dir = 0; W.moved = false; saveSession(); renderTask(); draw(); }
+function dropTask() { W.task = null; W.visited = new Set(); resetSteps(); W.state = 'idle'; W.near = null; W.last = null; W.dir = 0; W.moved = false; saveSession(); renderTask(); draw(); }
 function startTask() {
   if (!W.task) return;
   if (F.schematic) return toast('Карта нарисована схемой без координат: идти по ней нельзя. Нужен лист SPS.');
@@ -203,6 +207,28 @@ function nextPicket() {
   for (const d of [dir, -dir]) for (let q = W.last + d; q >= t.p1 && q <= t.p2; q += d) if (free(q)) return q;
   return null;
 }
+/* Отмена записанной точки: снятой кнопкой «Снять пикет здесь» или засчитанной при входе в зону.
+   Шаги хранятся стопкой; отменённый пикет не засчитывается снова, пока человек не выйдет из его зоны */
+function remember_step(st) {
+  W.hist.push({...st, last: W.last, dir: W.dir, moved: W.moved});
+  if (W.hist.length > 200) W.hist.shift();
+}
+function undoStep() {
+  const st = W.hist.pop();
+  if (!W.task || !st) return;
+  W.visited.delete(st.picket); W.order = W.order.filter(x => x !== st.picket);
+  W.last = st.last; W.dir = st.dir; W.moved = st.moved;
+  if (st.snap) {
+    W.task.points = st.points;
+    const f = {...(PREFS.facts || {})};
+    if (st.fact) f[st.fk] = st.fact; else delete f[st.fk];
+    PREFS.facts = f; post('/api/prefs', {facts: f}).catch(() => {});
+  } else W.ignore.add(st.picket);
+  saveSession(); renderTask(); draw();
+  sfx('toggle-off');
+  toast(`Отменено: пикет ${W.task.line} ${st.picket} не записан.`);
+}
+window.undoStep = undoStep;
 function pointIndex(picket) { const p = W.task.points; for (let i = 0; i < p.length; i += 4) if (p[i + 2] === picket) return i; return -1; }
 /* «Снять пикет здесь»: следующий по заданию пикет ставится туда, где человек стоит. Пикеты дальше, место которых
    было только посчитано (координат в SPS нет), сдвигаются так же - разбивка продолжается от нового места */
@@ -214,9 +240,11 @@ function snapHere() {
   if (picket === null) { toast('Все пикеты задания уже сняты.'); sfx('error'); return false; }
   const r1 = v => Math.round(v * 10) / 10, here = [r1(GEO.xy[0]), r1(GEO.xy[1])];
   const p = W.task.points, i = pointIndex(picket), dx = here[0] - p[i], dy = here[1] - p[i + 1];
+  const fk = factKey(W.task.line, picket);
+  remember_step({picket, snap: true, points: p.slice(), fact: (PREFS.facts || {})[fk] || null, fk});
   for (let k = 0; k < p.length; k += 4) if (k !== i && !p[k + 3] && !W.visited.has(p[k + 2])) { p[k] = r1(p[k] + dx); p[k + 1] = r1(p[k + 1] + dy); }
   p[i] = here[0]; p[i + 1] = here[1]; p[i + 3] = 1;
-  W.visited.add(picket); stepTo(picket); W.moved = true; W.near = null;
+  W.visited.add(picket); W.order.push(picket); stepTo(picket); W.moved = true; W.near = null;
   PREFS.facts = {...(PREFS.facts || {}), [factKey(W.task.line, picket)]: [here[0], here[1], new Date().toISOString(), W.task.sheet]};
   post('/api/prefs', {facts: PREFS.facts}).catch(() => {});
   try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { /* не критично */ }
@@ -242,7 +270,8 @@ function workFix(xy, acc, ts) {
   for (let i = 0; i < p.length; i += 4) {
     if (W.visited.has(p[i + 2])) continue;
     const d = Math.hypot(p[i] - xy[0], p[i + 1] - xy[1]);
-    if (d <= W.radius) { W.visited.add(p[i + 2]); added++; got = p[i + 2]; }
+    if (W.ignore.has(p[i + 2])) { if (d > W.radius * 1.5) W.ignore.delete(p[i + 2]); else continue; }   // отменённый: пока человек не отошёл
+    if (d <= W.radius) { remember_step({picket: p[i + 2]}); W.visited.add(p[i + 2]); W.order.push(p[i + 2]); added++; got = p[i + 2]; }
     else if (!best || d < best.dist) best = {picket: p[i + 2], dist: d};
   }
   W.near = best;
@@ -278,7 +307,7 @@ function runsOf(numbers) {
 }
 /* Остановить работу без записи в журнал: задание остаётся на карте, пройденное сбрасывается */
 function stopTask(text) {
-  W.state = 'idle'; W.visited = new Set(); W.last = null; W.dir = 0; W.near = null;
+  W.state = 'idle'; W.visited = new Set(); resetSteps(); W.last = null; W.dir = 0; W.near = null;
  
   saveSession(); renderTask(); draw();
   if (text) toast(text);
@@ -330,8 +359,9 @@ async function finishTask() {
   }
   if (j.error) { W.state = was; renderTask(); glow(); return toast(j.error); }
   const u = j.unit === 'пикет' ? picketWord(j.units) : chanWord(j.units);
-  W.task = null; W.visited = new Set(); W.state = 'idle'; W.last = null; W.dir = 0; W.moved = false; saveSession(); renderTask();
-  sfx('complete');
+  const anim = finishPoints(t);
+  W.task = null; W.visited = new Set(); resetSteps(); W.state = 'idle'; W.last = null; W.dir = 0; W.moved = false; saveSession(); renderTask();
+  playFinish(anim);
  
   for (const p of Object.values(Sheets.pages)) if (p.work) dirty[p.name] = true;
   await changed(true);
@@ -358,6 +388,7 @@ $('taskBar').addEventListener('click', e => { if ($('taskBar').classList.contain
   bar.addEventListener('pointercancel', () => { y0 = null; });
 })();
 $('tkSnap').onclick = snapHere;
+$('tkUndo').onclick = undoStep;
 window.workCmd = {snap: snapHere, pause: () => pauseTask(true), resume: () => pauseTask(false), finish: () => { if (W.task && W.state !== 'idle') finishTask(); }, active: () => !!W.task && W.state !== 'idle'};
 $('tkEnd').onclick = finishTask;
 $('tkClose').onclick = async () => {
@@ -413,6 +444,47 @@ function drawTask(z) {
   const tw = ctx.measureText(text).width, bx = Math.max(6, Math.min(w - tw - 24, lx - tw / 2 - 9)), by = ly - r - 30;
   ctx.fillStyle = '#161B22'; ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.roundRect(bx, by, tw + 18, 22, 4); ctx.fill(); ctx.stroke();
   ctx.fillStyle = color; ctx.fillText(text, bx + 9, by + 11.5);
+  ctx.restore();
+}
+
+/* ---------- анимация завершения: пройденные пикеты по очереди загораются на карте со звуком.
+   Выключается в «Настройки» → «Звуки» (PREFS.finish_anim = false) */
+const FA = {a: null};
+function finishPoints(t) {
+  const p = t.points, out = [];
+  for (let i = 0; i < p.length; i += 4) if (W.visited.has(p[i + 2])) out.push([p[i], p[i + 1]]);
+  return {pts: out, color: taskColor()};
+}
+function playFinish(a) {
+  if (!a || !a.pts.length || PREFS.finish_anim === false || document.hidden) { sfx('complete'); return; }
+  const n = a.pts.length, step = Math.max(18, Math.min(140, 2400 / n));
+  const A = FA.a = {...a, t0: performance.now(), step, last: -1, snd: 0, end: n * step};
+  window.FINISH = FA;
+  const tick = () => {
+    if (FA.a !== A) return;                       // началась новая анимация: эта больше не рисуется и не звучит
+    const el = performance.now() - A.t0, k = Math.min(n, Math.floor(el / step) + 1);
+    if (k - 1 > A.last) {
+      A.last = k - 1;
+      if (el - A.snd >= 85 && k < n) { A.snd = el; sfx('checkpoint'); }
+    }
+    if (el >= A.end && !A.done) { A.done = true; sfx('complete'); }
+    if (el >= A.end + 700) { FA.a = null; draw(); return; }
+    draw(); requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+function drawFinish(z) {
+  const A = FA.a; if (!A) return;
+  const el = performance.now() - A.t0, k = Math.min(A.pts.length, Math.floor(el / A.step) + 1);
+  const fade = el > A.end ? Math.max(0, 1 - (el - A.end) / 700) : 1, r = Math.max(4.5, z * 1.1);
+  ctx.save(); ctx.globalAlpha = fade;
+  for (let i = 0; i < k; i++) {
+    const [x, y] = toScreen(A.pts[i][0], A.pts[i][1]);
+    const age = el - i * A.step, pop = age < 260 ? 1 + 1.4 * (1 - age / 260) : 1;
+    if (pop > 1) { ctx.beginPath(); ctx.arc(x, y, r * pop * 1.8, 0, 6.2832); ctx.fillStyle = 'rgba(63,185,80,.25)'; ctx.fill(); }
+    ctx.beginPath(); ctx.arc(x, y, r * pop, 0, 6.2832); ctx.fillStyle = '#3FB950'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#238636'; ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -633,7 +705,7 @@ function drawFind(z) {
   }
   ctx.textBaseline = 'alphabetic';
 }
-window.workDraw = z => { if (F.schematic) return drawFind(z); drawTracks(); drawTask(z); drawFind(z); };
+window.workDraw = z => { if (F.schematic) return drawFind(z); drawTracks(); if (window.marksDraw) marksDraw(z); drawTask(z); drawFinish(z); drawFind(z); };
 
 /* ---------- контуры DXF: приходят с файлом проекта, здесь их показывают ---------- */
 const haText = a => (Math.round(a / 100) / 100).toLocaleString('ru-RU') + ' га';

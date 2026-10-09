@@ -5,13 +5,13 @@
 <meta name="color-scheme" content="dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Размотка СП10">
+<meta name="apple-mobile-web-app-title" content="GeoLink">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-<title>Контроль размотки</title>
+<title>GeoLink</title>
 <script src="js/compat.js"></script>
 <link rel="stylesheet" href="css/app.css">
 <link rel="preload" href="fonts/Inter.woff" as="font" type="font/woff" crossorigin>
@@ -48,14 +48,15 @@
 </section>
 
 <section class="page" id="p-field">
-  <h1 id="fieldTitle">Поле</h1>
-  <p class="lead" id="fieldLead"></p>
+  <h1 id="fieldTitle" hidden>Поле</h1>
+  <p class="lead" id="fieldLead" hidden></p>
   <div class="fieldwrap" id="fieldWrap">
     <div class="scrim" id="sideScrim"></div>
     <div class="card map" id="mapBox">
       <canvas id="map"></canvas>
       <div class="maptools">
         <button class="icon-btn dots" id="tRec" title="Записать трек своего движения" aria-label="Записать трек" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 14.5c2.5 0 2-4 4.5-4s2 2.5 4 2.5 2.5-3.5 2.5-6"/><circle cx="3.5" cy="14.5" r="1.3" fill="currentColor"/><circle cx="14.5" cy="5.2" r="1.8"/></svg></button>
+        <button class="icon-btn dots" id="mMark" title="Поставить метку" aria-label="Поставить метку" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.7-6-11a6 6 0 0 1 12 0c0 5.3-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg></button>
         <button class="icon-btn dots" id="mFind" title="Найти пикеты на карте" aria-label="Найти пикеты на карте" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="7.8" cy="7.8" r="4.8"/><path d="M11.6 11.6 15.4 15.4"/></svg></button>
         <button class="icon-btn dots" id="mFull" title="На весь экран" aria-label="На весь экран" aria-pressed="false"><svg class="i-full" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="i-out" d="M3 7V3h4M15 7V3h-4M3 11v4h4M15 11v4h-4"/><path class="i-in" d="M7 3v4H3M11 3v4h4M7 15v-4H3M11 15v-4h4"/></svg></button>
         <button class="icon-btn dots" id="gBtn" title="Моё местоположение" aria-label="Моё местоположение" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="3.2"/><path d="M9 1.5v3M9 13.5v3M1.5 9h3M13.5 9h3"/></svg></button>
@@ -73,8 +74,8 @@
         <div class="tk-prog" id="tkProg" hidden><i id="tkFill"></i></div>
         <div class="tk-more">
         <label class="tk-rad"><span>Радиус</span><input type="range" id="tkRad" min="3" max="30" step="1" aria-label="Радиус, в котором пикет засчитывается"><b id="tkRadV"></b></label>
-        <div class="tk-acts"><button type="button" class="btn small main" id="tkGo"></button><button type="button" class="btn small" id="tkPause" hidden>Пауза</button><button type="button" class="btn small" id="tkEnd" hidden></button></div>
-        <button type="button" class="btn small tk-snap" id="tkSnap" hidden>Снять пикет здесь</button>
+        <div class="tk-acts"><button type="button" class="btn small main" id="tkGo" data-nosnd></button><button type="button" class="btn small" id="tkPause" data-nosnd hidden>Пауза</button><button type="button" class="btn small" id="tkUndo" data-nosnd hidden title="Отменить последнюю записанную точку">↶</button><button type="button" class="btn small" id="tkEnd" hidden></button></div>
+        <button type="button" class="btn small tk-snap" id="tkSnap" data-nosnd hidden>Снять пикет здесь</button>
         </div>
       </div>
       <div class="recnote" id="recNote" hidden></div>
@@ -99,8 +100,10 @@
         <label><input type="checkbox" id="lRazm"><button type="button" class="sw" data-layer="razm" title="Форма, размер и цвет точек"></button>Размотано за период</label>
         <label><input type="checkbox" id="lPodm"><button type="button" class="sw" data-layer="podm" title="Форма, размер и цвет точек"></button>Подмотано за период</label>
         <label><input type="checkbox" id="lRazb" checked><button type="button" class="sw" data-layer="razb" title="Форма, размер и цвет точек"></button>Разбито</label>
+        <div id="lgCustom" class="legend"></div>
         <label id="lgPlan" style="display:none"><input type="checkbox" id="lPlan" checked><button type="button" class="sw" data-layer="plan" title="Форма, размер и цвет точек"></button>Задания на разбивку</label>
         <label><input type="checkbox" id="lTracks" checked>Треки, отмеченные во вкладке «Треки»</label>
+        <label><input type="checkbox" id="lMarks" checked>Метки</label>
         <label id="lgLeft" style="display:none"><input type="checkbox" id="lLeft" checked><button type="button" class="sw" data-layer="left" title="Форма, размер и цвет точек"></button>Оставленное оборудование</label>
         <label id="lgLost" style="display:none"><input type="checkbox" id="lLost" checked><button type="button" class="sw" data-layer="lost" title="Форма, размер и цвет точек"></button>Утерянное оборудование</label>
       </div>
@@ -135,8 +138,6 @@
       <button class="btn small" id="uBtn">Добавить подложку</button>
     </div>
   </div>
-  <h2>По линиям</h2>
-  <div class="card pad"><div class="cols" id="lines"></div></div>
 </section>
 
 <section class="page sheet" id="p-razm"></section>
@@ -157,17 +158,23 @@
 
 <section class="page" id="p-stats">
   <h1>Учёт</h1>
+  <div class="jtabs" id="sTabs"></div>
   <div class="row" style="margin:14px 0 20px">
     <div><label for="sFrom">С</label><input type="date" id="sFrom"></div>
     <div><label for="sTo">По</label><input type="date" id="sTo"></div>
-    <button class="btn" id="sAll">Весь период</button><button class="btn" id="s30">Последние 30 дней</button>
+    <span class="strip-set" id="sPresets"><button class="btn" id="sAll">Всё</button><button class="btn" id="s30">Месяц</button><button class="btn" id="s7">Неделя</button></span>
   </div>
+  <div id="sTop"></div>
+  <div id="sGfo">
   <div class="figures" id="sFig"></div>
   <div id="sStakeBox" hidden><h2>Разбивка по топографам</h2><div class="card scroll" id="sStake"></div></div>
   <div class="card pad"><div style="margin-bottom:8px;font-size:13.5px;color:var(--muted)"><span class="dot c-razm"></span>Размотка <span class="dot c-podm" style="margin-left:14px"></span>Подмотка, каналов в день</div><div id="chart"></div></div>
   <div class="grid2">
     <div><h2>По старшим</h2><div class="card scroll" id="sWorkers"></div></div>
     <div><h2>По линиям</h2><div class="card scroll" id="sLines"></div></div>
+  </div>
+  <h2>На поле по линиям</h2>
+  <div class="card pad"><div class="cols" id="lines"></div></div>
   </div>
 </section>
 
@@ -260,9 +267,15 @@
   <div class="dgrid">
     <div class="card dcard" id="sndCard"><h3>Звуки</h3>
       <p>Короткий щелчок, когда вы вошли в зону пикета и он записан, а также при начале, паузе и завершении работы. Звуки — из набора UI SFX.</p>
-      <div class="dctl"><label class="tick"><input type="checkbox" id="sndOn"> Звуки</label></div>
+      <div class="dctl"><label class="tick"><input type="checkbox" id="sndOn" data-nosnd> Звуки</label></div>
+      <div class="dctl"><label class="tick"><input type="checkbox" id="tapSnd"> Звук нажатий в интерфейсе</label></div>
+      <div class="dctl"><label class="tick"><input type="checkbox" id="animOn"> Анимация при завершении работы</label></div>
       <div class="dctl"><label for="sndStyle">Стиль</label><select id="sndStyle"><option value="mechanical">Механический — щелчки переключателей</option><option value="minimal">Минимальный — почти незаметные</option></select></div>
-      <div class="dact"><button class="btn" id="sndTest">Проверить звук</button></div></div>
+      <div class="dact"><button class="btn" id="sndTest" data-nosnd>Проверить звук</button></div></div>
+    <div class="card dcard" id="godCard"><h3>Режим отладки</h3>
+      <p>Позволяет изменить любой текст приложения: удерживайте палец на тексте — откроется окно правки. Изменения сохраняются и после выключения режима.</p>
+      <div class="dctl"><label class="tick"><input type="checkbox" id="godOn"> Режим отладки</label></div>
+      <div class="dact"><button class="btn" id="godReset">Вернуть все тексты</button><span class="dnote" id="godNote"></span></div></div>
     <div class="card dcard" id="liteCard"><h3>Скорость работы</h3>
       <p>Облегчённый вид — для слабых телефонов: без размытия «стекла» и анимаций, карта рисуется в меньшем разрешении. Всё остальное работает так же.</p>
       <div class="dctl"><label class="tick"><input type="checkbox" id="liteOn"> Облегчённый вид</label></div>
@@ -337,10 +350,13 @@
 <script src="js/grid.js"></script>
 <script src="js/sheet.js"></script>
 <script src="js/journals.js"></script>
+<script src="js/wheel.js"></script>
 <script src="js/map.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/work.js"></script>
+<script src="js/marks.js"></script>
 <script src="js/sfx.js"></script>
+<script src="js/god.js"></script>
 <script src="js/tiles.js"></script>
 <script src="js/stats.js"></script>
 <script src="js/check.js"></script>
