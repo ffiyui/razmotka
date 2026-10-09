@@ -48,6 +48,13 @@ def main():
             for ic in json.load(f).get('icons', []):
                 if ic.get('src') and ic['src'] not in files:
                     files.append(ic['src'])
+    for extra in ('fonts', 'sounds'):                      # шрифты (из css) и звуки (js/sfx.js): нужны без сети
+        d = os.path.join(ROOT, extra)
+        if os.path.isdir(d):
+            for base, _, names in sorted(os.walk(d)):
+                for n in sorted(names):
+                    if n.lower().endswith(('.woff', '.woff2', '.mp3', '.ogg')):
+                        files.append(os.path.relpath(os.path.join(base, n), ROOT).replace(os.sep, '/'))
     seen, out = set(), []
     for f in files:
         if f not in seen:

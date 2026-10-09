@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#E6EAF3">
-<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#0D1117">
+<meta name="color-scheme" content="dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Размотка СП10">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -14,6 +14,9 @@
 <title>Контроль размотки</title>
 <script src="js/compat.js"></script>
 <link rel="stylesheet" href="css/app.css">
+<link rel="preload" href="fonts/Inter.woff" as="font" type="font/woff" crossorigin>
+<link rel="preload" href="fonts/JetBrainsMono.woff" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="css/primer.css">
 </head><body>
 <div class="splash" id="splash">
   <div class="sp-card">
@@ -37,28 +40,14 @@
 </nav>
 <main>
 
+<section class="page" id="p-home">
+  <div class="home-head"><div class="home-brand" id="homeBrand"></div><div class="home-sub" id="homeSub"></div></div>
+  <div id="homeMenu" class="gh-menu"></div>
+</section>
+
 <section class="page" id="p-field">
   <h1 id="fieldTitle">Поле</h1>
   <p class="lead" id="fieldLead"></p>
-  <div class="card strip strip-del">
-    <span class="strip-title">Удаление размотки и подмотки</span>
-    <label for="cFrom">с</label><input type="date" id="cFrom">
-    <label for="cTo">по</label><input type="date" id="cTo">
-    <label class="tick"><input type="checkbox" id="cP" checked> подмотку</label>
-    <label class="tick"><input type="checkbox" id="cR" checked> размотку</label>
-    <button class="btn small danger" id="cGo">Удалить за период</button>
-    <span class="strip-space"></span>
-    <button class="btn small danger" id="cAll">Удалить всю размотку и подмотку</button>
-  </div>
-  <div class="card strip">
-    <span class="strip-title">Период на карте</span>
-    <label for="mFrom">с</label><input type="date" id="mFrom">
-    <label for="mTo">по</label><input type="date" id="mTo">
-    <span class="strip-sep"></span>
-    <span id="mPresets" class="strip-set"><button class="btn small" data-range="day" title="Последний день работ">День</button><button class="btn small" data-range="week" title="Последние 7 дней работ">Неделя</button><button class="btn small" data-range="month" title="Последние 30 дней работ">Месяц</button><button class="btn small" data-range="all" title="С первой записи по последнюю">Весь период</button></span>
-    <span class="strip-space"></span>
-    <span class="strip-note" id="mCount"></span>
-  </div>
   <div class="fieldwrap" id="fieldWrap">
     <div class="scrim" id="sideScrim"></div>
     <div class="card map" id="mapBox">
@@ -68,7 +57,7 @@
         <button class="icon-btn dots" id="mFind" title="Найти пикеты на карте" aria-label="Найти пикеты на карте" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="7.8" cy="7.8" r="4.8"/><path d="M11.6 11.6 15.4 15.4"/></svg></button>
         <button class="icon-btn dots" id="mFull" title="На весь экран" aria-label="На весь экран" aria-pressed="false"><svg class="i-full" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="i-out" d="M3 7V3h4M15 7V3h-4M3 11v4h4M15 11v4h-4"/><path class="i-in" d="M7 3v4H3M11 3v4h4M7 15v-4H3M11 15v-4h4"/></svg></button>
         <button class="icon-btn dots" id="gBtn" title="Моё местоположение" aria-label="Моё местоположение" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="3.2"/><path d="M9 1.5v3M9 13.5v3M1.5 9h3M13.5 9h3"/></svg></button>
-        <button class="icon-btn dots" id="sideShow" title="Показать панель инструментов" aria-label="Показать панель инструментов">⋯</button>
+        <button class="icon-btn dots" id="sideShow" title="Слои, подложки и настройки карты" aria-label="Слои, подложки и настройки карты"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.2l6.8 3.6L9 9.4 2.2 5.8z"/><path d="M2.2 9.1L9 12.7l6.8-3.6"/><path d="M2.2 12.4L9 16l6.8-3.6"/></svg></button>
       </div>
       <button class="north" id="mNorth" title="Стрелка показывает на север. Щелчок — вернуть север вверх" aria-label="Вернуть север вверх" hidden><svg width="22" height="22" viewBox="-11 -11 22 22" aria-hidden="true"><path d="M0-9 4.6 6 0 3.2-4.6 6Z" fill="currentColor"/></svg><span>С</span></button>
       <form class="findbox" id="findBox" hidden autocomplete="off">
@@ -91,7 +80,16 @@
       <div class="tip" id="tip"></div>
     </div>
     <div class="card side" id="mapSide">
-      <div class="side-head"><span>Инструменты</span><button class="icon-btn" id="sideHide" title="Скрыть панель" aria-label="Скрыть панель">›</button></div>
+      <div class="side-head"><span>Карта: слои и подложки</span><button class="icon-btn" id="sideHide" title="Скрыть панель" aria-label="Скрыть панель">›</button></div>
+  <div class="side-period">
+        <div class="side-title">Период на карте</div>
+        <label for="mFrom">с</label><input type="date" id="mFrom">
+        <label for="mTo">по</label><input type="date" id="mTo">
+        
+        <span id="mPresets" class="strip-set"><button class="btn small" data-range="day" title="Последний день работ">День</button><button class="btn small" data-range="week" title="Последние 7 дней работ">Неделя</button><button class="btn small" data-range="month" title="Последние 30 дней работ">Месяц</button><button class="btn small" data-range="all" title="С первой записи по последнюю">Весь период</button></span>
+        
+        <span class="strip-note" id="mCount"></span>
+      </div>
       <div class="side-title">Слои</div>
       <div class="legend">
         <label id="lgSps"><input type="checkbox" id="lSps" checked><button type="button" class="sw" data-layer="sps" title="Форма, размер и цвет точек"></button>Пикеты SPS</label>
@@ -187,7 +185,7 @@
 
 <section class="page" id="p-data">
   <h1>Данные</h1>
-  <p class="lead">Файл проекта для обмена с компьютером, загрузка из Excel, выгрузки и правила учёта.</p>
+  <p class="lead">Файл проекта для обмена с компьютером, загрузка из Excel, выгрузки и копия данных.</p>
   <h2>Файл проекта</h2>
   <div class="dgrid">
     <div class="card dcard"><h3>Сохранить файл проекта</h3>
@@ -232,7 +230,43 @@
         <input type="file" id="hFile" accept=".csv,.txt" multiple></div>
       <div class="dact"><button class="btn main" id="hGo">Получить файл</button><span class="dnote" id="hNote"></span></div></div>
   </div>
-  <h2>Координаты и копия данных</h2>
+  <h2>Копия данных</h2>
+  <div class="dgrid">
+    <div class="card dcard"><h3>Копия данных</h3>
+      <p>Все данные хранятся в памяти этого телефона. Раз в неделю сохраняйте копию в «Файлы» или отправляйте себе: если приложение удалить, данные пропадут.</p>
+      <div class="dctl"><input type="file" id="bkFile" accept=".json,application/json"></div>
+      <div class="dact"><button class="btn main" id="bkSave">Сохранить копию</button><button class="btn" id="bkLoad">Восстановить из копии</button><span class="dnote" id="bkNote"></span></div></div>
+  </div>
+  <h2>Удаление</h2>
+  <div class="dgrid">
+    <div class="card dcard"><h3>Удаление размотки и подмотки</h3>
+      <p>Удаляет проведённую размотку и подмотку за выбранные даты или всю целиком. Пикеты освобождаются на карте.</p>
+      <div class="dctl del-ctl"><label for="cFrom">с</label><input type="date" id="cFrom">
+    <label for="cTo">по</label><input type="date" id="cTo">
+    <label class="tick"><input type="checkbox" id="cP" checked> подмотку</label>
+    <label class="tick"><input type="checkbox" id="cR" checked> размотку</label>
+    </div>
+      <div class="dact"><button class="btn danger" id="cGo">Удалить за период</button></div>
+      <div class="dact"><button class="btn danger" id="cAll">Удалить всю размотку и подмотку</button></div></div>
+  </div>
+</section>
+
+<section class="page" id="p-settings">
+  <h1>Настройки</h1>
+  <p class="lead">Звук, скорость работы, система координат и правила учёта.</p>
+  <h2>Приложение</h2>
+  <div class="dgrid">
+    <div class="card dcard" id="sndCard"><h3>Звуки</h3>
+      <p>Короткий щелчок, когда вы вошли в зону пикета и он записан, а также при начале, паузе и завершении работы. Звуки — из набора UI SFX.</p>
+      <div class="dctl"><label class="tick"><input type="checkbox" id="sndOn"> Звуки</label></div>
+      <div class="dctl"><label for="sndStyle">Стиль</label><select id="sndStyle"><option value="mechanical">Механический — щелчки переключателей</option><option value="minimal">Минимальный — почти незаметные</option></select></div>
+      <div class="dact"><button class="btn" id="sndTest">Проверить звук</button></div></div>
+    <div class="card dcard" id="liteCard"><h3>Скорость работы</h3>
+      <p>Облегчённый вид — для слабых телефонов: без размытия «стекла» и анимаций, карта рисуется в меньшем разрешении. Всё остальное работает так же.</p>
+      <div class="dctl"><label class="tick"><input type="checkbox" id="liteOn"> Облегчённый вид</label></div>
+      <div class="dact"><span class="dnote" id="liteNote"></span></div></div>
+  </div>
+  <h2>Координаты</h2>
   <div class="dgrid">
     <div class="card dcard"><h3>Система координат</h3>
       <p>В этой системе заданы X и Y листа SPS. По ним на карте показывается ваше местоположение с GPS. X — восток (около 450 000), Y — север (около 5 700 000), без номера зоны в начале.</p>
@@ -240,20 +274,6 @@
         <select id="crsEll"><option value="gsk2011">ГСК-2011</option><option value="krass">Красовского (СК-42, СК-95)</option><option value="wgs84">WGS 84</option></select></div>
         <div><label for="crsZone">Зона Гаусса—Крюгера</label><input type="number" id="crsZone" min="1" max="60" inputmode="numeric"></div></div>
       <div class="dact"><button class="btn main" id="crsSave">Сохранить</button><span class="dnote" id="crsNote"></span></div></div>
-    <div class="card dcard" id="vcCard"><h3>Голосовое сопровождение</h3>
-      <p>Голос говорит, когда работа начата и завершена, и называет каждый записанный пикет: линию и пикет парами цифр («пятьдесят один ноль пять, четырнадцать девяносто семь»). Команды голосом: скажите «626», после ответа «Слушаю» — «снять точку здесь», «пауза», «продолжить» или «завершить».</p>
-      <div class="dctl"><label class="tick"><input type="checkbox" id="vcOn"> Голосовое сопровождение</label></div>
-      <div class="dctl"><label for="vcVoice">Голос</label><select id="vcVoice"></select></div>
-      <div class="dctl"><label class="tick"><input type="checkbox" id="vcMic"> Слушать команды (микрофон)</label></div>
-      <div class="dact"><button class="btn" id="vcTest">Проверить голос</button><span class="dnote" id="vcNote"></span></div></div>
-    <div class="card dcard" id="liteCard"><h3>Скорость работы</h3>
-      <p>Облегчённый вид — для слабых телефонов: без размытия «стекла» и анимаций, карта рисуется в меньшем разрешении. Всё остальное работает так же.</p>
-      <div class="dctl"><label class="tick"><input type="checkbox" id="liteOn"> Облегчённый вид</label></div>
-      <div class="dact"><span class="dnote" id="liteNote"></span></div></div>
-    <div class="card dcard"><h3>Копия данных</h3>
-      <p>Все данные хранятся в памяти этого телефона. Раз в неделю сохраняйте копию в «Файлы» или отправляйте себе: если приложение удалить, данные пропадут.</p>
-      <div class="dctl"><input type="file" id="bkFile" accept=".json,application/json"></div>
-      <div class="dact"><button class="btn main" id="bkSave">Сохранить копию</button><button class="btn" id="bkLoad">Восстановить из копии</button><span class="dnote" id="bkNote"></span></div></div>
   </div>
   <h2>Правила учёта</h2>
   <div class="dgrid">
@@ -273,6 +293,12 @@
 </section>
 
 </main></div>
+<div class="tabbar" id="tabbar" role="navigation" aria-label="Разделы">
+  <a href="#home" data-tab="home"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5.5 9v11h13V9"/><path d="M10 20v-6h4v6"/></svg><span>Главная</span></a>
+  <a href="#field" data-tab="field"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>Карта</span></a>
+  <a href="#data" data-tab="data"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.5"/><path d="M4.5 5.5v6c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-6"/><path d="M4.5 11.5v6c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-6"/></svg><span>Данные</span></a>
+  <a href="#settings" data-tab="settings"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Настройки</span></a>
+</div>
 <datalist id="gx-workers"></datalist><datalist id="gx-topo"></datalist>
 <div class="toast" id="toast"></div>
 <div class="gx-acc" id="gxAcc" role="toolbar" aria-label="Правка ячейки">
@@ -310,7 +336,7 @@
 <script src="js/map.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/work.js"></script>
-<script src="js/voice.js"></script>
+<script src="js/sfx.js"></script>
 <script src="js/tiles.js"></script>
 <script src="js/stats.js"></script>
 <script src="js/check.js"></script>

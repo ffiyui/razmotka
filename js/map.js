@@ -13,10 +13,10 @@ const FIND = {pts: [], labels: []};           // найденные пикеты
 /* Вид слоёв карты: цвет, форма и размер точек. Меняется щелчком по образцу в легенде,
    хранится на сервере (data/prefs.json). k - множитель размера, min - наименьший размер в пикселях. */
 const MAP_DEFAULT = {
-  sps: {c: '#C3C9D4', shape: 'square', k: .8}, field: {c: '#1D1D1F', shape: 'square', k: 1},
-  razm: {c: '#FF9500', shape: 'square', k: 1.15}, podm: {c: '#007AFF', shape: 'square', k: 1.15},
-  left: {c: '#FF3B30', shape: 'circle', k: 1, min: 10}, lost: {c: '#8E1B16', shape: 'cross', k: 1, min: 10},
-  razb: {c: '#AF52DE', shape: 'square', k: 1.7}, plan: {c: '#AF52DE', shape: 'box', k: 1.9, min: 7},
+  sps: {c: '#484F58', shape: 'square', k: .8}, field: {c: '#C9D1D9', shape: 'square', k: 1},      // тёмная тема Primer
+  razm: {c: '#D29922', shape: 'square', k: 1.15}, podm: {c: '#58A6FF', shape: 'square', k: 1.15},
+  left: {c: '#F85149', shape: 'circle', k: 1, min: 10}, lost: {c: '#DA3633', shape: 'cross', k: 1, min: 10},
+  razb: {c: '#A371F7', shape: 'square', k: 1.7}, plan: {c: '#A371F7', shape: 'box', k: 1.9, min: 7},
 };
 const LAYER_TITLE = {sps: 'Пикеты SPS', field: 'Лежит на поле', razm: 'Размотано за период', podm: 'Подмотано за период', left: 'Оставленное оборудование', lost: 'Утерянное оборудование'};
 const cloneStyle = () => JSON.parse(JSON.stringify(MAP_DEFAULT));
@@ -107,6 +107,7 @@ async function loadField() {
     $('fieldLead').textContent = 'Заполните лист «Размотка» и нажмите «Размотать»: оборудование появится на карте.';
   } else {
     $('fieldTitle').textContent = 'На поле ' + nf(S.field) + ' ' + plural(S.field, 'канал', 'канала', 'каналов');
+    if (typeof accentTitles === 'function') setTimeout(accentTitles);
     // Число в заголовке - фактическое: считается по последнему событию каждого пикета,
     // поэтому повторные размотки и подмотки без размотки в него не входят.
     let lead = 'Оборудование лежит на ' + nf(S.field_lines) + ' ' + plural(S.field_lines, 'линии', 'линиях', 'линиях') + '.';
@@ -157,7 +158,7 @@ async function loadPeriod() {
   const on = $('lRazm').checked || $('lPodm').checked;
   if (on && $('mFrom').value && $('mTo').value)
     P = await api(`/api/period?from=${$('mFrom').value}&to=${$('mTo').value}`);
-  $('mCount').textContent = on ? 'За период: размотано ' + nf(P.razm.length / 4) + ', подмотано ' + nf(P.podm.length / 4) : 'Включите слои «за период» справа от карты';
+  $('mCount').textContent = on ? 'За период: размотано ' + nf(P.razm.length / 4) + ', подмотано ' + nf(P.podm.length / 4) : 'Включите ниже слои «Размотано за период» и «Подмотано за период»';
   draw();
 }
 /* Быстрый выбор периода: отсчёт идёт от последнего дня работ. Слои «за период» включаются сами. */
@@ -335,7 +336,7 @@ function draw() {
   }
   const z = Math.max(1.3, Math.min(7, V.s * 18));
   if (!B && !u && !(window.TILES && TILES.last)) {
-    ctx.fillStyle = '#63636A'; ctx.font = '15px -apple-system,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#8B949E'; ctx.font = '15px Inter,-apple-system,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('Карта появится, когда на поле будет оборудование или заполнится лист SPS', w / 2, h / 2);
   }
   if (window.workDraw) workDraw(z);                         // треки, задание и найденные пикеты (js/work.js)

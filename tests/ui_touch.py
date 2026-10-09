@@ -37,31 +37,27 @@ with sync_playwright() as p:
         for name, w, h, land in [('iPhone SE', 375, 667, False), ('iPhone 14', 390, 844, False), ('iPhone 14', 390, 844, True), ('iPad (gen 7)', 820, 1180, False), ('iPad (gen 7)', 820, 1180, True)]:
             ctx, pg = page_for(p, name, w, h, land)
             tag = '%s %dx%d' % (name, pg.viewport_size['width'], pg.viewport_size['height'])
-            for pgname in ['razm', 'podm', 'field', 'stats', 'check', 'data', 'sps']:
+            for pgname in ['home', 'razm', 'podm', 'field', 'stats', 'check', 'data', 'settings', 'sps']:
                 go(pg, pgname)
-                if pgname == 'field': pg.click('#mPresets [data-range=all]'); pg.wait_for_timeout(500)
+                if pgname == 'field': pg.evaluate("document.querySelector('#mPresets [data-range=all]').click()"); pg.wait_for_timeout(500)
                 sw = pg.evaluate("[document.documentElement.scrollWidth, innerWidth]")
                 ok('no hscroll %s #%s' % (tag, pgname), sw[0] <= pg.viewport_size['width'] and sw[1] == pg.viewport_size['width'], sw)
             pg.screenshot(path=u.SHOTS + '/t_%s_%d.png' % (name.split()[0] + name.split()[1][:3], pg.viewport_size['width']))
             ok('no js errors ' + tag, not pg.errs, pg.errs)
             ctx.browser.close()
 
-        # ---- 2. меню-drawer, телефон ----
+        # ---- 2. iPhone: меню на главной и нижняя панель вместо выдвижного меню ----
         ctx, pg = page_for(p, 'iPhone 14', 390, 844)
         cdp = ctx.new_cdp_session(pg)
         go(pg, 'razm')
-        vis = lambda: pg.evaluate("(()=>{const r=document.querySelector('nav').getBoundingClientRect();return r.right>10&&getComputedStyle(document.querySelector('nav')).visibility==='visible'})()")
-        ok('drawer closed at start', not vis())
-        ok('burger visible', pg.is_visible('#navShow'))
-        pg.tap('#navShow'); pg.wait_for_timeout(450); ok('drawer opens', vis())
-        ok('brand one line', pg.evaluate("(()=>{const b=document.querySelector('.brand');return b.scrollWidth<=b.clientWidth+1&&b.offsetHeight<32})()"))
-        pg.touchscreen.tap(370, 500); pg.wait_for_timeout(450); ok('drawer closes by scrim tap', not vis())
-        pg.tap('#navShow'); pg.wait_for_timeout(450)
-        touch(cdp, "touchStart", [(250, 760)]); [touch(cdp, "touchMove", [(250 - 12 * k, 762)]) for k in range(1, 12)]; touch(cdp, 'touchEnd', [])
-        pg.wait_for_timeout(450); ok('drawer closes by swipe left', not vis())
-        pg.tap('#navShow'); pg.wait_for_timeout(450); pg.tap('nav a[data-p=stats]'); pg.wait_for_timeout(700)
-        ok('menu item navigates and closes', pg.evaluate("location.hash")=='#stats' and not vis())
-        pg.tap('#navShow'); pg.wait_for_timeout(450); pg.tap('#navHide'); pg.wait_for_timeout(450); ok('chevron closes drawer', not vis())
+        ok('no burger on phone', not pg.is_visible('#navShow'))
+        ok('tab bar visible', pg.is_visible('#tabbar') and pg.evaluate("document.getElementById('tabbar').getBoundingClientRect().bottom") <= 844)
+        pg.tap('#tabbar a[data-tab=home]'); pg.wait_for_timeout(700)
+        ok('home tab opens main menu', pg.evaluate("location.hash") == '#home' and pg.is_visible('#homeMenu .gh-row[data-p=stats]'))
+        pg.tap('#homeMenu .gh-row[data-p=stats]'); pg.wait_for_timeout(700)
+        ok('menu row navigates, home tab stays lit', pg.evaluate("location.hash") == '#stats' and pg.evaluate("document.querySelector('#tabbar a[data-tab=home]').classList.contains('on')"))
+        pg.tap('#tabbar a[data-tab=data]'); pg.wait_for_timeout(700)
+        ok('data tab', pg.evaluate("location.hash") == '#data' and pg.evaluate("document.querySelector('#tabbar a[data-tab=data]').classList.contains('on')"))
         ok('quit hidden on touch', not pg.is_visible('#quit') and pg.evaluate("!!document.getElementById('quit')"))
 
         # ---- 3. таблица ----
@@ -100,6 +96,7 @@ with sync_playwright() as p:
         touch(cdp, 'touchStart', [(200, 600)]); [touch(cdp, 'touchMove', [(200, 600 - 30 * k)]) for k in range(1, 8)]; touch(cdp, 'touchEnd', []); pg.wait_for_timeout(300)
         s = g(); ok('swipe scroll does not select/edit', s['a'] == before and not s['ed'] and not pg.evaluate("Sheets.pages.razm.grid.selectMode"), s)
         # режим «Выделить»
+        pg.wait_for_timeout(1500)                                   # инерция прокрутки после свайпа
         pg.evaluate("Sheets.pages.razm.grid.el.scrollTop=0"); pg.wait_for_function("Sheets.pages.razm.grid.el.scrollTop===0"); pg.wait_for_timeout(500)
         pg.tap('#p-razm .tb[data-t=select]'); pg.wait_for_timeout(400); pg.evaluate("Sheets.pages.razm.grid.el.scrollTop=0"); pg.wait_for_timeout(300)
         x1, y1 = cell_xy(1, 0); pg.touchscreen.tap(x1, y1); pg.wait_for_timeout(350); x2, y2 = cell_xy(3, 1); pg.touchscreen.tap(x2, y2); pg.wait_for_timeout(250)
@@ -113,7 +110,7 @@ with sync_playwright() as p:
         # ---- 4. карта ----
         ctx, pg = page_for(p, 'iPhone 14', 390, 844)
         cdp = ctx.new_cdp_session(pg)
-        go(pg, 'field'); pg.click('#mPresets [data-range=all]'); pg.wait_for_timeout(700)
+        go(pg, 'field'); pg.evaluate("document.querySelector('#mPresets [data-range=all]').click()"); pg.wait_for_timeout(700)
         pg.evaluate("document.getElementById('mapBox').scrollIntoView()"); pg.wait_for_timeout(200)
         r = pg.evaluate("(()=>{const r=cv.getBoundingClientRect();return [r.left,r.top,r.width,r.height]})()")
         cx, cy = r[0] + r[2] / 2, r[1] + r[3] / 2

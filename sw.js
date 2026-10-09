@@ -2,7 +2,7 @@
    Версию и список файлов между маркерами пишет tools/build_sw.py (запускать перед выдачей), руками их не править.
    Новая версия ставится, но не включается сама: страница показывает «Доступна новая версия — Обновить»
    и по кнопке присылает сюда сообщение SKIP_WAITING. Старые кэши удаляются при включении новой версии. */
-const VERSION = /*VERSION*/'9a2af7cdf57b'/*END*/;
+const VERSION = /*VERSION*/'8117901dc418'/*END*/;
 const FILES = /*FILES*/[
   "./",
   "index.html",
@@ -11,6 +11,9 @@ const FILES = /*FILES*/[
   "icons/icon-192.png",
   "js/compat.js",
   "css/app.css",
+  "fonts/Inter.woff",
+  "fonts/JetBrainsMono.woff",
+  "css/primer.css",
   "js/splash.js",
   "engine/gk.js",
   "engine/sheets-core.js",
@@ -39,7 +42,7 @@ const FILES = /*FILES*/[
   "js/map.js",
   "js/geo.js",
   "js/work.js",
-  "js/voice.js",
+  "js/sfx.js",
   "js/tiles.js",
   "js/stats.js",
   "js/check.js",
@@ -47,7 +50,37 @@ const FILES = /*FILES*/[
   "js/touch.js",
   "js/app.js",
   "icons/icon-512.png",
-  "icons/icon-maskable-512.png"
+  "icons/icon-maskable-512.png",
+  "sounds/mechanical/checkpoint.mp3",
+  "sounds/mechanical/close.mp3",
+  "sounds/mechanical/complete.mp3",
+  "sounds/mechanical/error.mp3",
+  "sounds/mechanical/open.mp3",
+  "sounds/mechanical/pause.mp3",
+  "sounds/mechanical/play.mp3",
+  "sounds/mechanical/press.mp3",
+  "sounds/mechanical/select.mp3",
+  "sounds/mechanical/snap.mp3",
+  "sounds/mechanical/start.mp3",
+  "sounds/mechanical/success.mp3",
+  "sounds/mechanical/toggle-off.mp3",
+  "sounds/mechanical/toggle-on.mp3",
+  "sounds/mechanical/warning.mp3",
+  "sounds/minimal/checkpoint.mp3",
+  "sounds/minimal/close.mp3",
+  "sounds/minimal/complete.mp3",
+  "sounds/minimal/error.mp3",
+  "sounds/minimal/open.mp3",
+  "sounds/minimal/pause.mp3",
+  "sounds/minimal/play.mp3",
+  "sounds/minimal/press.mp3",
+  "sounds/minimal/select.mp3",
+  "sounds/minimal/snap.mp3",
+  "sounds/minimal/start.mp3",
+  "sounds/minimal/success.mp3",
+  "sounds/minimal/toggle-off.mp3",
+  "sounds/minimal/toggle-on.mp3",
+  "sounds/minimal/warning.mp3"
 ]/*END*/;
 const PREFIX = 'razmotka-';
 const CACHE = PREFIX + VERSION;

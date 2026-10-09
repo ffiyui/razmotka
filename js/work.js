@@ -77,9 +77,9 @@ function workSheetHook(page) {
 const W = {task: null, visited: new Set(), state: 'idle', near: null, timer: 0, last: null, dir: 0, moved: false};
 Object.defineProperty(W, 'radius', {get: () => { const r = +PREFS.task_radius; return r >= RAD_MIN && r <= RAD_MAX ? r : NEAR; }});   // state: idle | run | pause
 window.WORK = W;
-const taskColor = () => cssVar({razm: '--razm', podm: '--blue', razb: '--razb'}[W.task.sheet]) || '#007AFF';
+const taskColor = () => cssVar({razm: '--razm', podm: '--blue', razb: '--razb'}[W.task.sheet]) || '#58A6FF';
 const NOUN = {razb: 'Разбивка', razm: 'Размотка', podm: 'Подмотка'};
-const say = text => { try { if (window.VOICE) VOICE.say(text); } catch (e) { /* голос - не обязательная часть */ } };
+const sfx = name => { try { if (window.ui) ui.play(name); } catch (e) { /* звук - не обязательная часть */ } };   // звуки UI SFX (js/sfx.js)
 const factKey = (line, picket) => line + ':' + picket;
 /* Номер вслух парами цифр: 1497 - «четырнадцать девяносто семь», 5105 - «пятьдесят один ноль пять» */
 const ONES = ['ноль', 'один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять'];
@@ -177,7 +177,7 @@ async function showTask(sheet, id, keep) {
   zoomTask(); glow();
   if (t.est) toast('Координат этих пикетов в SPS нет: место на карте посчитано по соседним пикетам и линиям.');
 }
-function dropTask() { W.task = null; W.visited = new Set(); W.state = 'idle'; W.near = null; W.last = null; W.dir = 0; W.moved = false; if (window.VOICE) VOICE.listen(false); saveSession(); renderTask(); draw(); }
+function dropTask() { W.task = null; W.visited = new Set(); W.state = 'idle'; W.near = null; W.last = null; W.dir = 0; W.moved = false; saveSession(); renderTask(); draw(); }
 function startTask() {
   if (!W.task) return;
   if (F.schematic) return toast('Карта нарисована схемой без координат: идти по ней нельзя. Нужен лист SPS.');
@@ -185,8 +185,7 @@ function startTask() {
   if (!GEO.on && window.geoStart) geoStart();
   saveSession(); renderTask(); glow();
   toast('Идите по пикетам: пикет засчитывается в ' + W.radius + ' м от него.');
-  say(`${NOUN[W.task.sheet]} начата`);
-  if (window.VOICE) VOICE.listen(true);
+  sfx('start');
 }
 function stepTo(picket) { if (W.last !== null && picket !== W.last) W.dir = picket > W.last ? 1 : -1; W.last = picket; }
 /* Какой пикет по заданию следующий: сосед последнего снятого по ходу движения; в начале - ближний к человеку край задания */
@@ -208,11 +207,11 @@ function pointIndex(picket) { const p = W.task.points; for (let i = 0; i < p.len
 /* «Снять пикет здесь»: следующий по заданию пикет ставится туда, где человек стоит. Пикеты дальше, место которых
    было только посчитано (координат в SPS нет), сдвигаются так же - разбивка продолжается от нового места */
 function snapHere() {
-  if (!W.task || W.state !== 'run') { toast('Сначала начните задание.'); say('Задание не идёт.'); return false; }
-  if (!GEO.xy || !GEO.fix) { toast('Нет положения по GPS: пикет снять не по чему.'); say('Нет сигнала GPS.'); return false; }
-  if (!(GEO.fix.acc <= 50)) { toast('Положение слишком неточное, подождите.'); say('Положение неточное. Подожди.'); return false; }
+  if (!W.task || W.state !== 'run') { toast('Сначала начните задание.'); sfx('error'); return false; }
+  if (!GEO.xy || !GEO.fix) { toast('Нет положения по GPS: пикет снять не по чему.'); sfx('error'); return false; }
+  if (!(GEO.fix.acc <= 50)) { toast('Положение слишком неточное, подождите.'); sfx('error'); return false; }
   const picket = nextPicket();
-  if (picket === null) { toast('Все пикеты задания уже сняты.'); say('Все пикеты уже сняты.'); return false; }
+  if (picket === null) { toast('Все пикеты задания уже сняты.'); sfx('error'); return false; }
   const r1 = v => Math.round(v * 10) / 10, here = [r1(GEO.xy[0]), r1(GEO.xy[1])];
   const p = W.task.points, i = pointIndex(picket), dx = here[0] - p[i], dy = here[1] - p[i + 1];
   for (let k = 0; k < p.length; k += 4) if (k !== i && !p[k + 3] && !W.visited.has(p[k + 2])) { p[k] = r1(p[k] + dx); p[k + 1] = r1(p[k + 1] + dy); }
@@ -223,7 +222,7 @@ function snapHere() {
   try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { /* не критично */ }
   saveSession(); renderTask(); draw();
   toast(`Пикет ${W.task.line} ${picket} снят здесь` + (Math.hypot(dx, dy) >= 1 ? `: сдвиг ${fmtM(Math.hypot(dx, dy))}.` : '.'));
-  say(spokenPoint(W.task.line, picket) + ', готово');
+  sfx('snap');
   return true;
 }
 window.snapHere = snapHere;
@@ -231,7 +230,7 @@ function pauseTask(on) {
   if (!W.task || W.state === 'idle') return;
   W.state = on === undefined ? (W.state === 'pause' ? 'run' : 'pause') : on ? 'pause' : 'run';
   if (W.state === 'run' && !GEO.on && window.geoStart) geoStart();
-  if (window.VOICE) VOICE.listen(true);
+  sfx(W.state === 'pause' ? 'pause' : 'play');
   saveSession(); renderTask(); glow();
 }
 /* Новое положение с GPS: трек и пикеты задания в круге 10 м */
@@ -251,7 +250,7 @@ function workFix(xy, acc, ts) {
     try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { /* не критично */ }
     stepTo(got);
     saveSession();
-    say(spokenPoint(W.task.line, got));
+    sfx('checkpoint');
     if (W.visited.size === taskTotal()) toast('Все пикеты задания пройдены. Нажмите «Завершить ' + VERB[W.task.sheet] + '».');
   }
   renderTask();
@@ -280,7 +279,7 @@ function runsOf(numbers) {
 /* Остановить работу без записи в журнал: задание остаётся на карте, пройденное сбрасывается */
 function stopTask(text) {
   W.state = 'idle'; W.visited = new Set(); W.last = null; W.dir = 0; W.near = null;
-  if (window.VOICE) VOICE.listen(false);
+ 
   saveSession(); renderTask(); draw();
   if (text) toast(text);
 }
@@ -332,8 +331,8 @@ async function finishTask() {
   if (j.error) { W.state = was; renderTask(); glow(); return toast(j.error); }
   const u = j.unit === 'пикет' ? picketWord(j.units) : chanWord(j.units);
   W.task = null; W.visited = new Set(); W.state = 'idle'; W.last = null; W.dir = 0; W.moved = false; saveSession(); renderTask();
-  say(NOUN[t.sheet] + ' завершена');
-  if (window.VOICE) VOICE.listen(false);
+  sfx('complete');
+ 
   for (const p of Object.values(Sheets.pages)) if (p.work) dirty[p.name] = true;
   await changed(true);
   toast(`Внесено в журнал: ${u}` + (j.done.length > 1 ? ` (ПП ${j.done.map(r => rangeText(r[0], r[1])).join(', ')})` : '') + '.');
@@ -404,16 +403,16 @@ function drawTask(z) {
       ctx.beginPath(); ctx.arc(x, y, zone, 0, 6.2832); ctx.strokeStyle = color; ctx.globalAlpha = .35; ctx.lineWidth = 1; ctx.stroke(); ctx.globalAlpha = 1;
     }
     ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
-    ctx.fillStyle = done ? '#34C759' : '#fff'; ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = done ? '#1F7A36' : color;
+    ctx.fillStyle = done ? '#3FB950' : '#0D1117'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = done ? '#238636' : color;
     ctx.setLineDash(p[i + 3] || done ? [] : [3, 2.5]);       // место посчитано примерно: пунктир
     ctx.stroke(); ctx.setLineDash([]);
   }
   const [lx, ly] = toScreen(p[0], p[1]), text = 'Л ' + t.line + ' · ПП ' + rangeText(t.p1, t.p2);
-  ctx.font = '600 12px -apple-system,"Segoe UI",system-ui,sans-serif'; ctx.textBaseline = 'middle';
+  ctx.font = '600 12px "JetBrains Mono",ui-monospace,Menlo,monospace'; ctx.textBaseline = 'middle';      // чипс с номерами: моноширинный
   const tw = ctx.measureText(text).width, bx = Math.max(6, Math.min(w - tw - 24, lx - tw / 2 - 9)), by = ly - r - 30;
-  ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(bx, by, tw + 18, 22, 11); ctx.fill();
-  ctx.fillStyle = '#fff'; ctx.fillText(text, bx + 9, by + 11.5);
+  ctx.fillStyle = '#161B22'; ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.roundRect(bx, by, tw + 18, 22, 4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = color; ctx.fillText(text, bx + 9, by + 11.5);
   ctx.restore();
 }
 
@@ -537,18 +536,18 @@ window.addEventListener('pagehide', () => { if (T.rec) remember('track_live', JS
   if (r.pts.length >= 6 && await saveTrack(r, trackDefault(r.t0) + ' (не завершён)')) toast('Запись трека прервалась: пройденная часть сохранена во вкладке «Треки».');
 })();
 function drawTracks() {
-  const lines = $('lTracks').checked ? T.items.filter(t => t.show).map(t => [t.pts, '#FF2D55']) : [];
-  if (T.rec && T.rec.pts.length >= 3) lines.push([T.rec.pts, '#FF3B30']);
+  const lines = $('lTracks').checked ? T.items.filter(t => t.show).map(t => [t.pts, '#DB61A2']) : [];
+  if (T.rec && T.rec.pts.length >= 3) lines.push([T.rec.pts, '#F85149']);
   if (!lines.length) return;
   ctx.save(); ctx.lineJoin = ctx.lineCap = 'round';
   for (const [p, color] of lines) {
-    for (const [c, wd] of [['rgba(255,255,255,.9)', 5], [color, 2.6]]) {
+    for (const [c, wd] of [['rgba(13,17,23,.9)', 5], [color, 2.6]]) {
       ctx.beginPath();
       for (let i = 0; i < p.length; i += 3) { const [x, y] = toScreen(p[i], p[i + 1]); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
       ctx.strokeStyle = c; ctx.lineWidth = wd; ctx.stroke();
     }
     const [x, y] = toScreen(p[0], p[1]);
-    ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 6.2832); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 6.2832); ctx.fillStyle = '#0D1117'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
   }
   ctx.restore();
 }
@@ -696,7 +695,7 @@ function dxfDraw() {
   ctx.globalAlpha = 1;
   if (!labels.length) return;
   ctx.font = '600 12px -apple-system,"Segoe UI",system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.fillStyle = '#1D1D1F';
+  ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(13,17,23,.92)'; ctx.fillStyle = '#C9D1D9';
   for (const [text, x, y] of labels) { const t = text.length > 28 ? text.slice(0, 27) + '…' : text; ctx.strokeText(t, x, y); ctx.fillText(t, x, y); }
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }

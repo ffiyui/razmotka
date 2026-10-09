@@ -1,6 +1,6 @@
 /* Переходы между экранами и запуск */
-const loaders={field:loadField,stats:loadStats,check:loadCheck,data:async()=>{if(typeof prjFill==='function')prjFill()},tracks:async()=>{await loadTracks();tracksRender()}};
-const START='razm';
+const loaders={home:async()=>{if(typeof homeRender==='function')homeRender()},settings:async()=>{},field:loadField,stats:loadStats,check:loadCheck,data:async()=>{if(typeof prjFill==='function')prjFill()},tracks:async()=>{await loadTracks();tracksRender()}};
+const START='home';
 /* Смена экрана с плавным переходом: прежний гаснет, новый проявляется. Если за это время выбран
    ещё один экран, показывается только последний выбранный. */
 let showTurn=0;
@@ -9,6 +9,7 @@ async function show(p){
   if(!loaders[p]&&!Sheets.pages[p])p=START;
   const turn=++showTurn,next=$('p-'+p),cur=document.querySelector('.page.on');
   navMark(p);
+  document.querySelectorAll('#tabbar a').forEach(a=>a.classList.toggle('on',a.dataset.tab===p||(a.dataset.tab==='home'&&p!=='field'&&p!=='data'&&p!=='settings')));
   if(cur&&cur!==next&&!calm){
     cur.classList.add('leaving');
     await new Promise(r=>setTimeout(r,130));
@@ -20,7 +21,11 @@ async function show(p){
   if(Sheets.pages[p])return Sheets.pages[p].show();
   if(dirty[p]!==false){dirty[p]=false;await loaders[p]()}
   if(p==='field')resizeMap();
+  accentTitles();
 }
+/* Один цветной акцент в заголовке: число («На поле 20 каналов») или первая буква */
+function accentTitles(){for(const h of document.querySelectorAll('.page>h1')){if(h.querySelector('.h-t')||h.children.length)continue;const t=h.textContent,m=t.match(/\d[\d\s\u00a0]*\d|\d/);
+  h.innerHTML='<span class="h-t">'+(m?esc(t.slice(0,m.index))+'<span class="h-acc n">'+esc(m[0])+'</span>'+esc(t.slice(m.index+m[0].length)):'<span class="h-acc">'+esc(t.charAt(0))+'</span>'+esc(t.slice(1)))+'</span>'}}
 window.onhashchange=()=>show(location.hash.slice(1));
 
 markDirty();

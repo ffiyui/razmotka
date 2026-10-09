@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Работа в поле на телефоне, от начала до конца (эмуляция iPhone, движок внутри страницы, без сервера):
+"""ВЕРСИЯ ДЛЯ ANDROID (папка android/, заморожена). Работа в поле на телефоне, от начала до конца (эмуляция iPhone, движок внутри страницы, без сервера):
 файл проекта с ПК -> задания -> «На карте» -> «Начать разбивку» -> пикеты по GPS в круге 10 м -> пауза ->
 «Завершить» -> журнал; трек; файл проекта, названный по исполнителю, -> табло на ПК.
 Запуск: python3 tests/ui_work.py   Снимки кладутся в UI_SHOTS."""
 import copy, functools, http.server, json, os, sys, tempfile, threading
 from playwright.sync_api import sync_playwright
 
-ROOT = os.environ.get('UI_ROOT', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.environ.get('UI_ROOT', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'android'))
 SHOTS = os.environ.get('UI_SHOTS', tempfile.mkdtemp()); os.makedirs(SHOTS, exist_ok=True)
 sys.path.insert(0, os.environ.get('RAZ_PC', '/home/claude/razmotka'))
 from app import config, paths
@@ -54,7 +54,7 @@ def chief_project(e0, n0):
 
 with sync_playwright() as p:
     br = p.chromium.launch()
-    ctx = br.new_context(**p.devices[os.environ.get('UI_DEVICE', 'iPhone 14')], accept_downloads=True, permissions=['geolocation'], geolocation={'latitude': 51.4652, 'longitude': 56.3954})
+    ctx = br.new_context(**p.devices[os.environ.get('UI_DEVICE', 'Pixel 7')], accept_downloads=True, permissions=['geolocation'], geolocation={'latitude': 51.4652, 'longitude': 56.3954})
     ctx.add_init_script("try{localStorage.setItem('installhint','1')}catch(e){}")      # подсказка про установку здесь не нужна
     if os.environ.get('UI_LITE') in ('0', '1'):                                         # облегчённый вид: 1 - включён, 0 - выключен
         ctx.add_init_script("try{localStorage.setItem('lite','%s')}catch(e){}" % os.environ['UI_LITE'])
@@ -123,8 +123,7 @@ with sync_playwright() as p:
     mb = page.locator('#map').bounding_box()
     pt = page.evaluate("toScreen(WORK.task.points[40]+12.5,WORK.task.points[41])")
     k = page.evaluate("devicePixelRatio")
-    page.evaluate("document.getElementById('toast').style.display='none'")
-    px = Image.open(io.BytesIO(page.screenshot())).convert('RGB').getpixel((int((mb['x'] + pt[0]) * k), int((mb['y'] + pt[1]) * k)))
+    px = Image.open(io.BytesIO(page.screenshot())).convert('RGB').getpixel((int((mb['x'] + pt[0]) * k), int((mb['y'] + pt[1] + 8) * k)))
     ok('на телефоне карта с заданием открыта во весь экран, плашка задания видна', page.evaluate("isFull()") and page.evaluate("(()=>{const r=document.getElementById('taskBar').getBoundingClientRect();return r.top>0&&r.bottom<=innerHeight})()"))
     ok('диапазон выделен свечением цвета разбивки', px[0] > px[1] + 15 and px[2] > px[1] + 25, px)
     shot('ios_task_glow')
@@ -132,8 +131,8 @@ with sync_playwright() as p:
     ok('касание карты предлагает «Начать разбивку»', page.inner_text('#dYes') == 'Начать разбивку' and 'Л 5009' in page.inner_text('#dTitle'))
     page.click('#dYes'); page.wait_for_function("WORK.state==='run'", timeout=5000)
     ok('работа начата, GPS включён', page.evaluate("GEO.on") and page.is_visible('#tkEnd') and page.inner_text('#tkEnd') == 'Завершить разбивку')
-    said = page.evaluate("ui.log[ui.log.length-1]")
-    ok('звук при начале работы', said == 'start' and not page.evaluate("'VOICE' in window"), said)
+    said = page.evaluate("VOICE.log[VOICE.log.length-1]")
+    ok('голос при начале: «Разбивка начата»', said == 'Разбивка начата', said)
     ok('кнопка «Снять пикет здесь» на плашке', page.is_visible('#tkSnap') and page.evaluate("(()=>{const r=document.getElementById('taskBar').getBoundingClientRect();return r.top>0&&r.bottom<=innerHeight})()"))
 
     # ---- идём по пикетам: засчитывается только в круге 10 м
@@ -142,8 +141,8 @@ with sync_playwright() as p:
     ok('в 30 метрах пикет не засчитан', page.evaluate("WORK.visited.size") == 0 and '30 м' in page.inner_text('#tkSub'), page.inner_text('#tkSub'))
     gps(1, 0, 6, 6)
     ok('в 8,5 м от пикета — засчитан', page.evaluate("[...WORK.visited]") == [1000])
-    ok('звук при входе в зону пикета', page.evaluate("ui.log[ui.log.length-1]") == 'checkpoint', page.evaluate("ui.log[ui.log.length-1]"))
-    ok('звук есть в наборе UI SFX и загружается', page.evaluate("fetch('sounds/mechanical/checkpoint.mp3').then(r=>r.ok&&r.headers.get('content-type')||'')").startswith('audio'))
+    ok('голос называет точку парами цифр', page.evaluate("VOICE.log[VOICE.log.length-1]") == 'пятьдесят ноль девять, десять ноль ноль', page.evaluate("VOICE.log[VOICE.log.length-1]"))
+    ok('пары цифр: 1497 и 5105', page.evaluate("[spokenNumber(1497),spokenNumber(5105),spokenNumber(1210)]") == ['четырнадцать девяносто семь', 'пятьдесят один ноль пять', 'двенадцать десять'])
     for i in range(1, 12):
         gps(1, i, 3, -2)
     gps(1, 11, 60, 80)                                         # отошёл в сторону: ничего не меняется
@@ -191,9 +190,9 @@ with sync_playwright() as p:
     ok('полное выполнение', 'Задание пройдено полностью' in page.inner_text('#dBody'))
     page.click('#dYes'); page.wait_for_function("S.field===30", timeout=10000)
     ok('размотка по заданию попала на поле', page.evaluate("S.drafts.razm") == 0)
-    ok('звук при завершении', page.evaluate("ui.log[ui.log.length-1]") == 'complete')
+    ok('голос: «Размотка завершена»', page.evaluate("VOICE.log[VOICE.log.length-1]") == 'Размотка завершена')
 
-    # ---- «Снять пикет здесь» и звуки
+    # ---- «Снять пикет здесь» и команды голосом
     go('razb', "Sheets.pages.razb.loaded"); page.locator('#p-razb .tkrow', has_text='5025').locator('button').click()
     page.wait_for_function("document.querySelector('#p-field.on') && WORK.task && WORK.task.line===5025", timeout=10000); page.wait_for_timeout(300)
     ok('до начала кнопки «Снять пикет здесь» нет', page.is_hidden('#tkSnap'))
@@ -201,29 +200,30 @@ with sync_playwright() as p:
     gps(3, 0, 40, 30)
     ok('в 50 м от расчётного места пикет сам не снят', page.evaluate("WORK.visited.size") == 0)
     page.click('#tkSnap'); page.wait_for_timeout(200)
-    r = page.evaluate("[[...WORK.visited],WORK.task.points.slice(0,8),ui.log[ui.log.length-1]]")
-    ok('кнопка сняла следующий пикет там, где стоит человек, остальные сдвинулись', r == [[1000], [base[0] + 40, base[1] + 630, 1000, 1, base[0] + 65, base[1] + 630, 1001, 0], 'snap'], r)
+    r = page.evaluate("[[...WORK.visited],WORK.task.points.slice(0,8),VOICE.log[VOICE.log.length-1]]")
+    ok('кнопка сняла следующий пикет там, где стоит человек, остальные сдвинулись', r == [[1000], [base[0] + 40, base[1] + 630, 1000, 1, base[0] + 65, base[1] + 630, 1001, 0], 'пятьдесят двадцать пять, десять ноль ноль, готово'], r)
     shot('ios_snap')
     gps(3, 1, 40, 55)
-    page.click('#tkSnap'); page.wait_for_timeout(200)
-    r = page.evaluate("[[...WORK.visited],WORK.task.points.slice(4,12),ui.log[ui.log.length-1]]")
-    ok('кнопкой снят следующий пикет', r == [[1000, 1001], [base[0] + 65, base[1] + 655, 1001, 1, base[0] + 90, base[1] + 655, 1002, 0], 'snap'], r)
+    n = page.evaluate("VOICE.log.length")
+    ok('без слова «626» команда не выполняется', page.evaluate("VOICE.hear('снять точку здесь')") is None and page.evaluate("WORK.visited.size") == 1)
+    ok('«626» — «Слушаю»', page.evaluate("VOICE.hear('626')") == 'wake' and page.evaluate("VOICE.log[VOICE.log.length-1]") == 'Слушаю')
+    ok('команда после «Слушаю»', page.evaluate("VOICE.hear('Снять точку здесь.')") == 'snap')
+    r = page.evaluate("[[...WORK.visited],WORK.task.points.slice(4,12),VOICE.log[VOICE.log.length-1]]")
+    ok('голосом снят следующий пикет', r == [[1000, 1001], [base[0] + 65, base[1] + 655, 1001, 1, base[0] + 90, base[1] + 655, 1002, 0], 'пятьдесят двадцать пять, десять ноль один, готово'], r)
     gps(3, 2, 42, 52)
-    ok('дальше пикеты снимаются сами от нового места', page.evaluate("[...WORK.visited]") == [1000, 1001, 1002] and page.evaluate("ui.log[ui.log.length-1]") == 'checkpoint')
-    page.click('#tkPause'); page.wait_for_timeout(100)
-    ok('пауза: звук и кнопка «Снять пикет здесь» скрыта', page.evaluate("WORK.state") == 'pause' and page.evaluate("ui.log[ui.log.length-1]") == 'pause' and page.is_hidden('#tkSnap'))
-    page.click('#tkPause'); page.wait_for_timeout(100)
-    ok('продолжение: звук', page.evaluate("WORK.state") == 'run' and page.evaluate("ui.log[ui.log.length-1]") == 'play')
+    ok('дальше пикеты снимаются сами от нового места', page.evaluate("[...WORK.visited]") == [1000, 1001, 1002] and page.evaluate("VOICE.log[VOICE.log.length-1]") == 'пятьдесят двадцать пять, десять ноль два')
+    ok('«шестьсот двадцать шесть, пауза»', page.evaluate("VOICE.hear('шестьсот двадцать шесть, пауза')") == 'pause' and page.evaluate("WORK.state") == 'pause' and page.is_hidden('#tkSnap'))
+    ok('«626 продолжить»', page.evaluate("VOICE.hear('626 продолжить')") == 'resume' and page.evaluate("WORK.state") == 'run')
     page.wait_for_timeout(900); page.reload(); page.wait_for_function("typeof WORK==='object' && WORK.task && WORK.visited.size===3", timeout=20000)
     page.evaluate("window.BASE=%s" % json.dumps(base))
     ok('сдвинутые пикеты переживают перезапуск', page.evaluate("WORK.task.points.slice(12,16)") == [base[0] + 115, base[1] + 655, 1003, 0], page.evaluate("WORK.task.points.slice(8,16)"))
-    go('settings'); page.wait_for_timeout(200)
-    ok('в настройках выключатель звуков, включён, стиль «механический»', page.is_checked('#sndOn') and page.input_value('#sndStyle') == 'mechanical')
-    page.uncheck('#sndOn'); page.wait_for_timeout(200)
+    go('data'); page.wait_for_timeout(200)
+    ok('в настройках выключатель голоса, включён', page.is_checked('#vcOn'))
+    page.uncheck('#vcOn'); page.wait_for_timeout(200)
     go('field', 'F && F.sps.length>0'); page.click('#tkPause'); page.wait_for_function("WORK.state==='run'")
-    n = page.evaluate("ui.log.length"); gps(3, 3, 40, 55)
-    ok('звуки выключены: пикет снят молча', page.evaluate("WORK.visited.size") == 4 and page.evaluate("ui.log.length") == n and page.evaluate("fetch('/api/prefs').then(r=>r.json()).then(j=>j.sound)") is False, page.evaluate("[WORK.visited.size, ui.log.slice(-3), PREFS.sound, WORK.state]"))
-    go('settings'); page.check('#sndOn'); page.wait_for_timeout(200)
+    n = page.evaluate("VOICE.log.length"); gps(3, 3, 40, 55)
+    ok('голос выключен: пикет снят молча', page.evaluate("WORK.visited.size") == 4 and page.evaluate("VOICE.log.length") == n and page.evaluate("fetch('/api/prefs').then(r=>r.json()).then(j=>j.voice)") is False)
+    go('data'); page.check('#vcOn'); page.wait_for_timeout(200)
     go('field', 'F && F.sps.length>0'); page.click('#tkClose'); page.wait_for_selector('#veil[style*=flex]'); page.click('#dYes'); page.wait_for_timeout(300)
 
     # ---- размотка с нахлёстом, радиус ползунком, плашка прячется вниз
@@ -322,31 +322,6 @@ with sync_playwright() as p:
     project.apply(db, cfg, os.path.join(d, 'config.json'), rep['token'], 'merge', ['journal'])
     s = reports.summary(db, cfg)
     ok('на ПК принятое ждёт кнопки', (s['staked'], s['field'], s['drafts']['razb'], s['drafts']['razm']) == (0, 20, 4, 2), (s['staked'], s['field'], s['drafts']))
-
-    # ---- оформление iPhone: тёмная тема, нижняя панель, главная, настройки, карта
-    page.evaluate("location.hash='#home'"); page.wait_for_timeout(700)
-    ok('нижняя панель: Главная, Карта, Данные, Настройки', page.evaluate("[...document.querySelectorAll('#tabbar a')].map(a=>a.textContent.trim())") == ['Главная', 'Карта', 'Данные', 'Настройки'] and page.is_visible('#tabbar'))
-    rows = page.evaluate("[...document.querySelectorAll('#homeMenu .gh-row')].map(a=>a.dataset.p)")
-    ok('на главной меню разделов без «Карты» и «Данных»', 'field' not in rows and 'data' not in rows and 'razm' in rows and 'tracks' in rows, rows)
-    ok('в боковом меню тоже нет «Карты» и «Данных»', page.evaluate("!document.querySelector('#navlist a[data-p=field]') && !document.querySelector('#navlist a[data-p=data]')"))
-    page.click('#tabbar a[data-tab=settings]'); page.wait_for_function("document.querySelector('#p-settings.on')")
-    ok('экран настроек: звуки, скорость, система координат, правила', all(page.evaluate(f"!!document.querySelector('#p-settings #{i}')") for i in ('sndOn', 'liteOn', 'crsSave', 'rSave')) and page.evaluate("document.querySelector('#tabbar a[data-tab=settings]').classList.contains('on')"))
-    ok('тёмная тема Primer', page.evaluate("[getComputedStyle(document.body).backgroundColor, getComputedStyle(document.querySelector('#p-settings .card')).backgroundColor, getComputedStyle(document.querySelector('#p-settings .card')).borderTopColor, getComputedStyle(document.querySelector('#p-settings .card')).boxShadow]") == ['rgb(13, 17, 23)', 'rgb(22, 27, 34)', 'rgb(48, 54, 61)', 'none'])
-    ok('шрифты Inter и JetBrains Mono загружены', page.evaluate("document.fonts.ready.then(()=>[document.fonts.check('16px Inter'),document.fonts.check('16px \"JetBrains Mono\"')])") == [True, True])
-    shot('ios_settings')
-    page.click('#tabbar a[data-tab=field]'); page.wait_for_function("document.querySelector('#p-field.on') && F.sps.length>0"); page.wait_for_timeout(500)
-    ok('настройки карты и период — в одной кнопке на карте', page.evaluate("!!document.querySelector('#mapSide #mFrom') && !!document.querySelector('#mapSide #uBtn') && !!document.querySelector('#mapBox #sideShow')"))
-    page.click('#sideShow'); page.wait_for_timeout(500)
-    ok('кнопка открывает шторку со слоями и подложками', page.evaluate("document.querySelector('.fieldwrap').classList.contains('sheet-open')"))
-    shot('ios_map_sheet')
-    page.click('#sideHide'); page.wait_for_timeout(400)
-    page.click('#mFull'); page.wait_for_timeout(500)
-    r = page.evaluate("(()=>{const m=document.getElementById('mapBox').getBoundingClientRect(),cs=getComputedStyle(document.getElementById('mapBox'));return [Math.round(m.left),Math.round(m.top),Math.round(m.width)===innerWidth,Math.round(m.height)===innerHeight,cs.borderTopWidth,cs.borderTopLeftRadius,getComputedStyle(document.getElementById('tabbar')).display]})()")
-    ok('во весь экран: карта без рамок от края до края, нижней панели нет', r == [0, 0, True, True, '0px', '0px', 'none'], r)
-    shot('ios_map_full')
-    page.click('#mFull'); page.wait_for_timeout(300)
-    page.evaluate("location.hash='#data'"); page.wait_for_timeout(500)
-    ok('удаление размотки и подмотки — на экране «Данные»', page.is_visible('#cGo') and page.is_visible('#cAll'))
 
     ok('ошибок в консоли нет', not errs, errs[:5])
     br.close()
