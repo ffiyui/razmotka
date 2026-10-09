@@ -150,7 +150,7 @@ globalThis.RZ = globalThis.RZ || {};
   function apply(db, cfg, name, force = false, ids = null) {
     const sheet = sheet_of(name);
     if (sheet.kind !== 'work') throw new ValidationError('На этом листе нет проведения.');
-    const rules = cfg.rules, only = ids ? new Set(ids.map(i => parseInt(i, 10))) : null, stake = name === 'razb';
+    const rules = cfg.rules, only = ids ? new Set(ids.map(i => parseInt(i, 10))) : null, stake = sheet.wtype === 2;   // разбивка и свои листы работ
     return db.write(repo => {
       const rows = repo.sheet_rows(name);
       const drafts = [];
@@ -159,7 +159,7 @@ globalThis.RZ = globalThis.RZ || {};
       if (!intervals.length) throw new ValidationError('Нечего проводить: ' + (only ? 'отмеченные строки пусты или уже проведены.' : 'заполните строки таблицы.'));
       const has_sps = repo.sps_count() > 0, known = has_sps ? (l, a, b) => repo.sps_known(l, a, b) : () => null;
       const [blocking, warnings] = stake
-        ? RZ.validation.review_stake(intervals.map(x => x[1]), RZ.today(), known, (l, a, b) => repo.staked_known(l, a, b), rules)
+        ? RZ.validation.review_stake(intervals.map(x => x[1]), RZ.today(), known, (l, a, b) => repo.staked_known(l, a, b, name), rules, name === 'razb' ? 'разбиты' : 'выполнены')
         : RZ.validation.review(intervals.map(x => x[1]), RZ.today(), known, l => repo.field_pickets(l), rules);
       if (blocking.length) throw new ValidationError('Не проведено: ' + blocking.join('; ') + '.');
       if (warnings.length && !force) return {warnings};
@@ -168,7 +168,7 @@ globalThis.RZ = globalThis.RZ || {};
       const batch = repo.new_batch(now_iso(), name, 'apply');
       let total = 0;
       intervals.forEach(([rid, iv], k) => {
-        if (stake) repo.insert_staked(rid, iv.line, iv.p1, iv.p2, iv.date, iv.wid, iv.worker);
+        if (stake) repo.insert_staked(rid, iv.line, iv.p1, iv.p2, iv.date, iv.wid, iv.worker, name);
         else repo.insert_events(rid, iv.line, iv.p1, iv.p2, iv.date, iv.type, iv.wid, iv.worker, batch * 1000000 + k);
         total += iv.count;
       });
@@ -242,5 +242,47 @@ globalThis.RZ = globalThis.RZ || {};
     return {ok: true};
   }
 
-  RZ.svc_sheets = {clean, lookup_of, now_iso, meta, party, draft_counts, draft_channels, load, save_rows, delete_rows, apply, undo, unapply, cleanup, clear, recalc};
+  // ---------------------------------------------------------------- свои листы
+  const custom_defs = db => (Array.isArray(db.get('custom', [])) ? db.get('custom', []) : []);
+  function custom_list(db) { return {items: custom_defs(db)}; }
+  /* j.add {kind, title, journal, lookup} | j.rename {id, title} | j.remove id */
+  function custom_save(db, cfg, j) {
+    const defs = custom_defs(db).map(d => ({...d}));
+    let out = {ok: true};
+    if (j.add) {
+      const kind = j.add.kind, title = String(j.add.title || '').trim().slice(0, 60);
+      if (!sh.CUSTOM_KINDS.includes(kind)) throw new ValidationError('Неизвестный вид листа.');
+      if (!title) throw new ValidationError('Введите название листа.');
+      if (defs.length >= 200) throw new ValidationError('Слишком много своих листов.');
+      let id;
+      do { id = 'c' + Math.random().toString(36).slice(2, 10); } while (sh.SHEETS[id] || defs.some(d => d.id === id));
+      const d = {id, kind, title, journal: String(j.add.journal || '').slice(0, 40), prefix: String(j.add.prefix || 'Журнал').slice(0, 60)};
+      if (kind === 'work') d.lookup = (sh.custom_id(j.add.lookup) && defs.some(x => x.id === j.add.lookup && x.kind === 'workers')) || j.add.lookup === 'workers' ? j.add.lookup : 'topo';
+      defs.push(d); out.id = id;
+    } else if (j.rename) {
+      const d = defs.find(x => x.id === j.rename.id);
+      if (!d) throw new ValidationError('Листа уже нет.');
+      const title = String(j.rename.title || '').trim().slice(0, 60);
+      if (!title) throw new ValidationError('Введите название листа.');
+      d.title = title;
+      if (j.rename.prefix !== undefined) d.prefix = String(j.rename.prefix).slice(0, 60);
+    } else if (j.prefix) {                                 // журнал переименован: подпись его листов
+      for (const d of defs) if (d.journal === j.prefix.journal) d.prefix = String(j.prefix.title || '').slice(0, 60);
+    } else if (j.remove) {
+      const d = defs.find(x => x.id === j.remove);
+      if (!d) return out;
+      if (defs.some(x => x.kind === 'work' && x.lookup === d.id)) throw new ValidationError('Этот лист ID используется листом работ: сначала удалите тот лист.');
+      db.write(repo => {
+        const ids = repo.sheet_rows(d.id).map(r => r[0]);
+        repo.delete_staked(ids);
+        repo.delete_rows(d.id, ids, false);
+      });
+      defs.splice(defs.indexOf(d), 1);
+    } else throw new ValidationError('Что сделать с листом?');
+    db.set('custom', defs);
+    sh.register_custom(defs);
+    return out;
+  }
+
+  RZ.svc_sheets = {custom_list, custom_save, clean, lookup_of, now_iso, meta, party, draft_counts, draft_channels, load, save_rows, delete_rows, apply, undo, unapply, cleanup, clear, recalc};
 })(globalThis.RZ);

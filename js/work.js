@@ -9,7 +9,7 @@
 
 const NEAR = 10;                               // м: пикет считается пройденным, когда человек вошёл в этот круг (по умолчанию)
 const RAD_MIN = 3, RAD_MAX = 30;                // радиус меняется ползунком на плашке задания
-const VERB = {razm: 'размотку', podm: 'подмотку', razb: 'разбивку'};
+const VERB = new Proxy({razm: 'размотку', podm: 'подмотку', razb: 'разбивку'}, {get: (o, k) => o[k] || 'работу'});   // свои листы работ - «работу»
 const pad2 = n => String(n).padStart(2, '0');
 const still = !!(window.LITE || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches));   // без мигания (и на слабых телефонах)
 const fmtM = m => (m >= 1000 ? (Math.round(m / 10) / 100).toLocaleString('ru-RU') + ' км' : nf(Math.round(m)) + ' м');
@@ -77,8 +77,8 @@ function workSheetHook(page) {
 const W = {task: null, visited: new Set(), state: 'idle', near: null, timer: 0, last: null, dir: 0, moved: false};
 Object.defineProperty(W, 'radius', {get: () => { const r = +PREFS.task_radius; return r >= RAD_MIN && r <= RAD_MAX ? r : NEAR; }});   // state: idle | run | pause
 window.WORK = W;
-const taskColor = () => cssVar({razm: '--razm', podm: '--blue', razb: '--razb'}[W.task.sheet]) || '#58A6FF';
-const NOUN = {razb: 'Разбивка', razm: 'Размотка', podm: 'Подмотка'};
+const taskColor = () => cssVar({razm: '--razm', podm: '--blue', razb: '--razb'}[W.task.sheet] || '--c-green') || '#3FB950';
+const NOUN = new Proxy({razb: 'Разбивка', razm: 'Размотка', podm: 'Подмотка'}, {get: (o, k) => o[k] || 'Работа'});
 const sfx = name => { try { if (window.ui) ui.play(name); } catch (e) { /* звук - не обязательная часть */ } };   // звуки UI SFX (js/sfx.js)
 const factKey = (line, picket) => line + ':' + picket;
 /* Номер вслух парами цифр: 1497 - «четырнадцать девяносто семь», 5105 - «пятьдесят один ноль пять» */

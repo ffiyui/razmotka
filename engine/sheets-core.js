@@ -289,8 +289,62 @@ globalThis.RZ = globalThis.RZ || {};
     return String(value);
   }
 
+  /* ---------------------------------------------------------------- свои листы
+     Пользователь создаёт журналы (вкладки на главной) и в них листы трёх видов:
+     work - таблица работ, как «Разбивка»: строка - линия и диапазон пикетов, кнопка «Провести» отмечает пикеты
+            выполненными (без учёта оборудования на поле);
+     workers - таблица ID исполнителей, как «ID топографов»;
+     plain - простая таблица: дата, линия, пикет, текст, примечание.
+     Описания хранятся в базе (часть custom) и в файле проекта; здесь они превращаются в обычные листы. */
+  const CUSTOM_KINDS = ['work', 'workers', 'plain'];
+  const BUILTIN = new Set(Object.keys(SHEETS));
+  const custom_id = id => typeof id === 'string' && /^c[a-z0-9]{2,24}$/.test(id) && !BUILTIN.has(id);
+  function custom_sheet(d) {
+    const title = String(d.title || 'Лист').slice(0, 60), lookup = custom_id(d.lookup) || d.lookup === 'workers' ? d.lookup : 'topo';
+    if (d.kind === 'workers') return sheet(d.id, title, [
+      col('id', 'ID исполнителя', 'int', 120, {lo: 1, hi: 999999}),
+      col('name', 'ФИО исполнителя', 'text', 260),
+      col('same', 'ID (дубль)', 'calc', 160, {calc: 'same_id'}),
+    ], 'workers', {heading: false, blank: 20});
+    if (d.kind === 'plain') return sheet(d.id, title, [
+      col('date', 'Дата', 'date', 104, DATE_ERR),
+      col('line', 'Линия', 'int', 84, LINE_ERR),
+      col('picket', 'Пикет', 'int', 90, PICKET_ERR('Пикет')),
+      col('text', 'Текст', 'text', 240),
+      col('note', 'Примечание', 'text', 240),
+    ], 'plain', {heading: false, blank: 60});
+    return sheet(d.id, title, [
+      col('date', 'Дата', 'date', 104, DATE_ERR),
+      col('worker', 'ФИО исполнителя', 'text', 184, {suggest: lookup}),
+      col('line', 'Линия', 'int', 84, LINE_ERR),
+      col('p1', 'Начальный ПП', 'int', 132, PICKET_ERR('Начальный ПП')),
+      col('p2', 'Конечный ПП', 'int', 126, PICKET_ERR('Конечный ПП')),
+      col('count', 'Кол-во пикетов', 'calc', 138, {calc: 'channels'}),
+      col('note', 'Примечание', 'text', 280),
+      col('wid', 'ID исполнителя', 'calc', 118, {calc: 'worker_id'}),
+    ], 'work', {wtype: 2, button: String(d.button || 'Провести').slice(0, 30), undo: 'Отменить проведение', lookup,
+      prefix: String(d.prefix || 'Журнал').slice(0, 60), unit: 'пикет'});
+  }
+  /* Ставит свои листы: прежние свои убираются, встроенные не трогаются. Возвращает принятые описания */
+  function register_custom(defs) {
+    for (const id of Object.keys(SHEETS)) if (!BUILTIN.has(id)) delete SHEETS[id];
+    const keep = a => { const b = a.filter(id => BUILTIN.has(id)); a.length = 0; a.push(...b); };
+    keep(WORK); keep(ROWS); keep(ORDER);
+    const ok = [];
+    for (const d of Array.isArray(defs) ? defs : []) {
+      if (!d || !custom_id(d.id) || !CUSTOM_KINDS.includes(d.kind) || SHEETS[d.id]) continue;
+      const s = custom_sheet(d);
+      s.custom = true; s.journal = String(d.journal || ''); s.meta = () => ({...meta(s), custom: true, journal: s.journal});
+      SHEETS[d.id] = s; ROWS.push(d.id); ORDER.splice(ORDER.length - 1, 0, d.id);
+      if (s.kind === 'work') WORK.push(d.id);
+      ok.push({id: d.id, kind: d.kind, title: s.title, journal: s.journal, lookup: s.lookup, button: s.button, prefix: s.prefix});
+    }
+    return ok;
+  }
+
   RZ.sh = {
     TITLE_PREFIX, INFO_PARTY_ROW, MISSING, NO_VALUE, SHEETS, JOURNAL, ORDER, WORK, ROWS, INFO_RULES, INFO_DEFAULT,
+    CUSTOM_KINDS, BUILTIN, custom_id, register_custom,
     parse_date, parse_int, parse_num, normalize, channels, worker_lookup, worker_id, computed, sheet_index,
     blank_values, is_blank, display, round4, round_half_even,
   };

@@ -12,7 +12,9 @@ globalThis.RZ = globalThis.RZ || {};
   const sh = RZ.sh, ValidationError = RZ.ValidationError;
   const APP = 'razmotka', FORMAT = 2, EXT = '.rzm';
   const PARTS = ['journal', 'sps', 'dxf', 'tracks', 'settings'];
-  const PEOPLE = ['workers', 'topo'], MERGED = ['razm', 'podm', 'razb', 'oo', 'snake'];
+  /* Листы, которые объединяются: встроенные и свои листы пользователя (sheets-core.js, register_custom) */
+  const PEOPLE_LIST = () => ['workers', 'topo', ...sh.ROWS.filter(n => sh.SHEETS[n].custom && sh.SHEETS[n].kind === 'workers')];
+  const MERGED_LIST = () => ['razm', 'podm', 'razb', 'oo', 'snake', ...sh.ROWS.filter(n => sh.SHEETS[n].custom && sh.SHEETS[n].kind !== 'workers')];
   const NOT_A_PROJECT = 'Это не файл проекта. Нужен файл .rzm, сохранённый кнопкой «Сохранить файл проекта».';
   const pending = new Map();                 // проверенные файлы ждут решения пользователя: ключ -> источники
   const pad = n => String(n).padStart(2, '0');
@@ -38,6 +40,7 @@ globalThis.RZ = globalThis.RZ || {};
       if (parts.has('sps')) journal.sps = repo.sheet_rows('sps').map(r => r[2]);
       return RZ.svc_sheets.party(repo);
     });
+    journal.custom = db.get('custom', []) || [];             // свои листы пользователя: описания
     if (parts.has('dxf')) journal.dxf = db.get('dxf', []) || [];
     if (parts.has('tracks')) journal.tracks = (db.get('tracks', []) || []).map(({uid, name, ts, pts}) => ({uid, name, ts, pts}));
     const d = new Date(), who = (db.get('prefs', {}) || {}).me, me = (who && typeof who === 'object' ? who.name : who) || '';
@@ -116,21 +119,22 @@ globalThis.RZ = globalThis.RZ || {};
   /* Считает, что изменится в журнале, если принять файлы. Сам ничего не меняет: изменения выполняет run() */
   class Merge {
     constructor(repo) {
+      this.P = PEOPLE_LIST(); this.M = MERGED_LIST();
       this.recs = []; this.by_uid = new Map(); this.pool = new Map();
       this.gone = repo.gone_uids(); this.revive = new Set(); this.bad = 0;
-      this.stat = {}; for (const n of MERGED) this.stat[n] = {tasks: 0, changed: 0, removed: 0, same: 0, differs: 0, added: 0};
-      this.people = {workers: [], topo: []}; this.names = {};
-      for (const name of [...PEOPLE, ...MERGED]) {
+      this.stat = {}; for (const n of this.M) this.stat[n] = {tasks: 0, changed: 0, removed: 0, same: 0, differs: 0, added: 0};
+      this.people = Object.fromEntries(this.P.map(n => [n, []])); this.names = {};
+      for (const name of [...this.P, ...this.M]) {
         const sheet = sh.SHEETS[name];
         for (const [id, pos, v, batch, uid, ts, origin, fmt] of repo.rows_full(name)) {
           const rec = {id, sheet: name, pos, v, batch, uid, ts, origin, fmt, taken: false};
           this.recs.push(rec);
           if (uid) this.by_uid.set(uid, rec);
-          if (MERGED.includes(name) && !sh.is_blank(sheet, v)) {
+          if (this.M.includes(name) && !sh.is_blank(sheet, v)) {
             const k = name + '|' + key_of(sheet, v); let a = this.pool.get(k); if (!a) this.pool.set(k, a = []); a.push(rec);
           }
         }
-        if (PEOPLE.includes(name)) this.names[name] = new Set(this.recs.filter(r => r.sheet === name && r.v[1]).map(r => fold(r.v[1])));
+        if (this.P.includes(name)) this.names[name] = new Set(this.recs.filter(r => r.sheet === name && r.v[1]).map(r => fold(r.v[1])));
       }
     }
     _new(name, v, uid, ts, fmt, origin = null) {
@@ -141,7 +145,7 @@ globalThis.RZ = globalThis.RZ || {};
     }
     add(journal, label) {
       const rows_of = name => (Array.isArray(journal.sheets[name]) ? journal.sheets[name].filter(r => r && typeof r === 'object') : []);
-      for (const name of PEOPLE) {
+      for (const name of this.P) {
         const sheet = sh.SHEETS[name];
         for (const r of rows_of(name)) {
           const v = r.v;
@@ -152,7 +156,7 @@ globalThis.RZ = globalThis.RZ || {};
           this._new(name, [v[0], v[1], null], this.by_uid.has(r.uid) ? null : r.uid || null, r.ts, null);
         }
       }
-      for (const name of MERGED) {
+      for (const name of this.M) {
         const sheet = sh.SHEETS[name], st = this.stat[name], work = sheet.kind === 'work', rows = [];
         for (const r of rows_of(name)) {
           let v;
@@ -187,14 +191,14 @@ globalThis.RZ = globalThis.RZ || {};
       }
       for (const uid of journal.gone || []) {                 // там строку удалили: наш нетронутый черновик тоже снимается
         const rec = this.by_uid.get(uid);
-        if (rec && rec.id !== null && rec.batch === null && !rec.origin && MERGED.includes(rec.sheet) && !rec.dirty && !rec.delete) {
+        if (rec && rec.id !== null && rec.batch === null && !rec.origin && this.M.includes(rec.sheet) && !rec.dirty && !rec.delete) {
           rec.delete = true; this.stat[rec.sheet].removed++;
         }
       }
     }
     report() {
       const work = [], other = [];
-      for (const name of MERGED) {
+      for (const name of this.M) {
         const sheet = sh.SHEETS[name], st = this.stat[name];
         if (sheet.kind !== 'work') { other.push({sheet: name, title: sheet.title, added: st.added, changed: st.changed}); continue; }
         const who = new Map();
@@ -206,7 +210,7 @@ globalThis.RZ = globalThis.RZ || {};
         work.push({sheet: name, title: sheet.title, unit: sheet.unit, who: people, rows: people.reduce((s, p) => s + p.rows, 0),
           units: people.reduce((s, p) => s + p.units, 0), tasks: st.tasks, changed: st.changed, removed: st.removed, same: st.same, differs: st.differs});
       }
-      return {work, other, bad: this.bad, people: PEOPLE.filter(n => this.people[n].length).map(n => ({sheet: n, title: sh.SHEETS[n].title, added: this.people[n]}))};
+      return {work, other, bad: this.bad, people: this.P.filter(n => this.people[n].length).map(n => ({sheet: n, title: sh.SHEETS[n].title, added: this.people[n]}))};
     }
     run(repo) {
       const last = new Map();
@@ -263,6 +267,7 @@ globalThis.RZ = globalThis.RZ || {};
       catch (e) { if (e instanceof ValidationError && files.length > 1) throw new ValidationError(`«${name}»: ${e.message}`); throw e; }
     }
     const first = sources[0], single = sources.length === 1 && !first.partial;
+    RZ.sh.register_custom(custom_union(db.get('custom', []), sources));        // свои листы из файлов - чтобы увидеть их строки
     const {here, changes} = db.read(repo => {
       const here = {}; for (const k of sh.ROWS) here[k] = repo.sheet_rows(k).length;
       here.sps = repo.sps_count();
@@ -283,7 +288,13 @@ globalThis.RZ = globalThis.RZ || {};
     return {token, single, files: sources.map(info), parts, changes, here: {rows: here, empty: sh.WORK.reduce((n, k) => n + here[k], 0) === 0}};
   }
 
-  function discard(token) { pending.delete(token); return {ok: true}; }
+  function discard(token, db) { pending.delete(token); if (db) RZ.sh.register_custom(db.get('custom', [])); return {ok: true}; }
+  /* Свои листы: здешние и из файлов, без повторов (по номеру листа) */
+  function custom_union(local, sources) {
+    const out = (Array.isArray(local) ? local : []).map(d => ({...d})), ids = new Set(out.map(d => d.id));
+    for (const s of sources) for (const d of Array.isArray(s.journal.custom) ? s.journal.custom : []) if (d && RZ.sh.custom_id(d.id) && !ids.has(d.id)) { ids.add(d.id); out.push({...d}); }
+    return out;
+  }
 
   /* Заменяет журнал содержимым файла: выполненные строки получают след в учёте, как после кнопки */
   function replace_journal(repo, cfg, journal) {
@@ -308,7 +319,7 @@ globalThis.RZ = globalThis.RZ || {};
         try { got = RZ.validation.work_intervals([row], lookup, null, cfg.rules, sheet.wtype, sheet); } catch (e) { return; }   // строка с ошибкой остаётся черновиком
         if (!got.length) return;
         const [id, iv] = got[0];
-        if (name === 'razb') repo.insert_staked(id, iv.line, iv.p1, iv.p2, iv.date, iv.wid, iv.worker);
+        if (sheet.wtype === 2) repo.insert_staked(id, iv.line, iv.p1, iv.p2, iv.date, iv.wid, iv.worker, name);
         else repo.insert_events(id, iv.line, iv.p1, iv.p2, iv.date, iv.type, iv.wid, iv.worker, batch * 1000000 + k);
         ok.push(id);
       });
@@ -331,6 +342,8 @@ globalThis.RZ = globalThis.RZ || {};
     if (!want.size) throw new ValidationError('Отметьте, что загрузить из файла.');
     const next = want.has('settings') ? new_settings(first, cfg) : null;
     const same_day = (next || cfg).rules.same_day;
+    const custom = mode === 'replace' ? custom_union([], [first]) : custom_union(db.get('custom', []), sources);
+    RZ.sh.register_custom(custom);
     let changes = null, dxf = null, tracks = null;
     const counts = db.write(repo => {
       if (mode === 'replace') {
@@ -351,6 +364,7 @@ globalThis.RZ = globalThis.RZ || {};
     });
     db.coords = null;
     if (next) { cfg.rules = next.rules; cfg.crs = next.crs; db.set('config', cfg); }
+    db.set('custom', custom);
     if (dxf) db.set('dxf', dxf);
     if (tracks) db.set('tracks', tracks);
     pending.delete(token);

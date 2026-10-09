@@ -10,10 +10,12 @@ function setWorkers(pairs, list = 'workers') {
     const key = String(name).trim().toLowerCase();
     if (!lookup.has(key)) lookup.set(key, id === null ? 0 : id);
   }
-  $('gx-' + list).innerHTML = pairs.filter(p => p[1]).map(p => `<option value="${esc(p[1])}">`).join('');
+  let dl = $('gx-' + list);
+  if (!dl) { dl = document.createElement('datalist'); dl.id = 'gx-' + list; document.body.appendChild(dl); }   // свой лист ID
+  dl.innerHTML = pairs.filter(p => p[1]).map(p => `<option value="${esc(p[1])}">`).join('');
 }
 async function loadWorkers() {
-  for (const list of ['workers', 'topo']) {
+  for (const list of ['workers', 'topo', ...Object.values(Sheets.pages).filter(p => p.meta.custom && p.meta.kind === 'workers').map(p => p.name)]) {
     const j = await api('/api/sheet?name=' + list);
     setWorkers(j.rows.map(r => [r[3][0], r[3][1]]), list);
   }
@@ -37,10 +39,15 @@ class SheetPage {
     this.loaded = false;
     this.action = null;
     this.sel = {cells: 1, nums: 0, sum: 0, done: 0, real: 0};
-    this.done = this.work ? DONE_WORD[meta.id] : '';
+    this.done = this.work ? DONE_WORD[meta.id] || 'выполнено' : '';
     this.units = meta.unit === 'пикет' ? picketWord : chanWord;        // в чём считается работа листа
-    const el = this.el = $('p-' + meta.id);
-    el.classList.add(this.work ? 'acc-' + meta.id : 'acc-plain');
+    let el = $('p-' + meta.id);
+    if (!el) {                                                  // свой лист пользователя: страница создаётся здесь
+      el = document.createElement('section'); el.className = 'page sheet'; el.id = 'p-' + meta.id;
+      document.querySelector('main').appendChild(el);
+    }
+    this.el = el;
+    el.classList.add(this.work ? (meta.custom ? 'acc-custom' : 'acc-' + meta.id) : 'acc-plain');
     el.innerHTML =
       `<div class="sh-top"><h1><span class="sh-h"></span>${!meta.heading ? '' : this.work
           ? ` <button type="button" class="sh-word" title="Цвет листа: щелчок — выбрать">${esc(meta.title)}</button>`
@@ -204,10 +211,14 @@ class SheetPage {
   }
 
   title() {
-    return this.meta.heading ? this.meta.prefix : this.meta.title;   // «Журнал ГФО» или «Журнал ТГО»; номер партии стоит в шапке меню
+    const g = typeof navGroupOf === 'function' ? navGroupOf(this.name) : null;      // название журнала, в котором лист (js/journals.js)
+    return this.meta.heading ? (g ? g.title : this.meta.prefix) : (typeof navTitle === 'function' ? navTitle(this.name) || this.meta.title : this.meta.title);
   }
   async show() {
     this.el.querySelector('.sh-h').textContent = this.title();
+    const word = this.el.querySelector('.sh-word');
+    if (word && typeof navTitle === 'function') word.textContent = navTitle(this.name) || this.meta.title;
+    if (typeof jtabsRender === 'function') jtabsRender(this);
     if (!this.loaded || dirty[this.name]) { dirty[this.name] = false; await this.load(this.loaded); }
     else this.grid.render();
     this.stale = false;
@@ -258,7 +269,9 @@ class SheetPage {
     q('.sh-state').innerHTML = d.rows
       ? `Ждут кнопки «${esc(this.meta.button)}»: <b>${rowsWord(d.rows)}</b>, ${this.units(d.channels)}` + (d.got ? ` · из файлов: ${nf(d.got)}` : '')
       : (this.grid.rows.length ? 'Все строки проведены' : 'Таблица пуста. Вводите строки или загрузите журнал из Excel в разделе «Данные»');
-    $('nav-' + this.name).textContent = d.rows ? nf(d.rows) : '';
+    if ($('nav-' + this.name)) $('nav-' + this.name).textContent = d.rows ? nf(d.rows) : '';
+    if (S && S.done && S.done[this.name] !== undefined)                 // сколько уже выполнено по листу - чипсом
+      q('.sh-state').insertAdjacentHTML('afterbegin', `<span class="chip g sh-done">${cap(this.done)}: ${this.units(S.done[this.name])}</span> `);
   }
   setSave(state) {
     this.el.querySelector('.sh-save').textContent = state === 'pending' ? 'Сохраняю…' : state === 'saved' ? 'Сохранено' : '';
@@ -454,5 +467,16 @@ class SheetPage {
 async function initSheets() {
   Sheets.meta = await api('/api/sheets');
   for (const m of Sheets.meta.sheets) Sheets.pages[m.id] = new SheetPage(m);
+  await loadWorkers();
+  if (typeof journalsSync === 'function') journalsSync();            // свои листы - в свои журналы меню (js/journals.js)
+}
+/* Свой лист добавлен или переименован: описание листов перечитывается, новая страница создаётся */
+async function refreshSheets() {
+  Sheets.meta = await api('/api/sheets');
+  for (const m of Sheets.meta.sheets) {
+    if (!Sheets.pages[m.id]) Sheets.pages[m.id] = new SheetPage(m);
+    else Sheets.pages[m.id].meta.title = m.title;
+  }
+  for (const id of Object.keys(Sheets.pages)) if (!Sheets.meta.sheets.some(m => m.id === id)) { Sheets.pages[id].el.remove(); delete Sheets.pages[id]; }
   await loadWorkers();
 }

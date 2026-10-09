@@ -41,7 +41,9 @@
 <main>
 
 <section class="page" id="p-home">
-  <div class="home-head"><div class="home-brand" id="homeBrand"></div><div class="home-sub" id="homeSub"></div></div>
+  <div class="home-head"><div class="home-brand" id="homeBrand"></div>
+    <div class="home-note" id="homeNoteBox"><textarea id="homeNote" rows="1" placeholder="Заметки: участок, задачи на день, контакты…" aria-label="Заметки"></textarea>
+      <button type="button" class="note-more" id="homeNoteMore" hidden aria-label="Показать заметку целиком"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button></div></div>
   <div id="homeMenu" class="gh-menu"></div>
 </section>
 
@@ -329,10 +331,12 @@
 <script src="engine/api.js"></script>
 <script src="engine/boot.js"></script>
 <script src="js/core.js"></script>
+<script src="js/icons.js"></script>
 <script src="js/native.js"></script>
 <script src="js/nav.js"></script>
 <script src="js/grid.js"></script>
 <script src="js/sheet.js"></script>
+<script src="js/journals.js"></script>
 <script src="js/map.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/work.js"></script>
