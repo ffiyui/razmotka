@@ -13,17 +13,28 @@ const FIND = {pts: [], labels: []};           // найденные пикеты
 /* Вид слоёв карты: цвет, форма и размер точек. Меняется щелчком по образцу в легенде,
    хранится на сервере (data/prefs.json). k - множитель размера, min - наименьший размер в пикселях. */
 const MAP_DEFAULT = {
-  sps: {c: '#C3C9D4', shape: 'square', k: .8}, field: {c: '#1D1D1F', shape: 'square', k: 1},
-  razm: {c: '#FF9500', shape: 'square', k: 1.15}, podm: {c: '#007AFF', shape: 'square', k: 1.15},
-  left: {c: '#FF3B30', shape: 'circle', k: 1, min: 10}, lost: {c: '#8E1B16', shape: 'cross', k: 1, min: 10},
-  razb: {c: '#AF52DE', shape: 'square', k: 1.7}, plan: {c: '#AF52DE', shape: 'box', k: 1.9, min: 7},
+  sps: {c: '#484F58', shape: 'square', k: .8}, spss: {c: '#6E7681', shape: 'circle', k: .8}, field: {c: '#C9D1D9', shape: 'square', k: 1},      // тёмная тема Primer
+  razm: {c: '#D29922', shape: 'square', k: 1.15}, podm: {c: '#58A6FF', shape: 'square', k: 1.15},
+  left: {c: '#F85149', shape: 'circle', k: 1, min: 10}, lost: {c: '#DA3633', shape: 'cross', k: 1, min: 10},
+  razb: {c: '#A371F7', shape: 'square', k: 1.7}, plan: {c: '#A371F7', shape: 'box', k: 1.9, min: 7},
 };
-const LAYER_TITLE = {sps: 'Пикеты SPS', field: 'Лежит на поле', razm: 'Размотано за период', podm: 'Подмотано за период', left: 'Оставленное оборудование', lost: 'Утерянное оборудование'};
+const LAYER_TITLE = {sps: 'Проектные SPS R', spss: 'Проектные SPS S', razb: 'Разбито', plan: 'Задания на разбивку', field: 'Лежит на поле', razm: 'Размотано за период', podm: 'Подмотано за период', left: 'Оставленное оборудование', lost: 'Утерянное оборудование'};
 const cloneStyle = () => JSON.parse(JSON.stringify(MAP_DEFAULT));
 let MS = cloneStyle(), PREFS = {};
+/* Свои листы работ (GeoLink): у каждого свой слой; вид по умолчанию - по очереди из набора цветов */
+const CUSTOM_COLORS = ['#3FB950', '#DB61A2', '#39C5CF', '#E3B341', '#FF7B72', '#79C0FF', '#D2A8FF'];
+const isLayerCustom = k => /^c[a-z0-9]{2,24}$/.test(k) && !MAP_DEFAULT[k];
+function layerDefault(k) {
+  if (MAP_DEFAULT[k]) return JSON.parse(JSON.stringify(MAP_DEFAULT[k]));
+  if (typeof Sheets !== 'undefined' && Sheets.pages[k] && Sheets.pages[k].meta.kind === 'sps') return {c: '#8B949E', shape: 'diamond', k: .9};
+  let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return {c: CUSTOM_COLORS[h % CUSTOM_COLORS.length], shape: 'circle', k: 1.5};
+}
+const msOf = k => MS[k] || (MS[k] = layerDefault(k));
+const layerTitle = k => LAYER_TITLE[k] || (typeof navTitle === 'function' && navTitle(k)) || 'Слой';
 function paintSwatches() {
-  document.querySelectorAll('.sw').forEach(b => { const st = MS[b.dataset.layer]; b.innerHTML = shapeSvg(st.shape, st.c, 14); });
-  $('swReset').hidden = JSON.stringify(MS) === JSON.stringify(MAP_DEFAULT);
+  document.querySelectorAll('.sw').forEach(b => { const st = msOf(b.dataset.layer); b.innerHTML = shapeSvg(st.shape, st.c, 14); });
+  $('swReset').hidden = Object.keys(MS).every(k => JSON.stringify(MS[k]) === JSON.stringify(layerDefault(k)));
 }
 async function loadMapStyle() {
   try {
@@ -36,6 +47,13 @@ async function loadMapStyle() {
       if (SHAPES[v.shape]) MS[k].shape = v.shape;
       if (v.k >= .4 && v.k <= 5) MS[k].k = +v.k;
     }
+    for (const [k, v] of Object.entries(saved)) {                   // слои своих листов
+      if (!isLayerCustom(k) || !v || typeof v !== 'object') continue;
+      const st = msOf(k);
+      if (/^#[0-9a-f]{6}$/i.test(v.c || '')) st.c = v.c;
+      if (SHAPES[v.shape]) st.shape = v.shape;
+      if (v.k >= .4 && v.k <= 5) st.k = +v.k;
+    }
   } catch (err) { /* вид по умолчанию */ }
   paintSwatches();
 }
@@ -44,15 +62,16 @@ function styleChanged() {
   sprites.clear(); paintSwatches(); LC = null; draw();
   clearTimeout(styleTimer); styleTimer = setTimeout(() => post('/api/prefs', {map_style: MS}).catch(() => {}), 400);
 }
-/* Окно слоя: форма, размер, цвет */
-function openLayerStyle(button) {
-  const key = button.dataset.layer, st = MS[key];
-  const html = () => `<div class="pal-title">${LAYER_TITLE[key]}: форма</div><div class="shape-grid">` +
+/* Окно слоя: форма, размер, цвет. inline - панель внутри разворачиваемой строки легенды вместо всплывающего окна */
+function openLayerStyle(button, inline) {
+  const key = button.dataset.layer, st = msOf(key);
+  const html = () => `<div class="pal-title">${esc(layerTitle(key))}: форма</div><div class="shape-grid">` +
     Object.keys(SHAPES).map(n => `<button type="button" class="shape-b${n === st.shape ? ' on' : ''}" data-shape="${n}" title="${SHAPES[n].title}">${shapeSvg(n, st.c, 16)}</button>`).join('') + '</div>' +
     `<div class="pal-title">Размер</div><label class="range">мельче<input type="range" class="st-size" min="0.4" max="5" step="0.1" value="${st.k}" style="flex:1">крупнее</label>` +
     `<div class="pal-title">Цвет</div>${paletteHtml(st.c)}` +
     `<div class="pal-row"><button type="button" class="pal-none">Как было</button><label class="pal-own">Свой<input type="color" value="${st.c}"></label></div>`;
-  const {el} = popover(button, html());
+  let el;
+  if (inline) { el = inline; el.innerHTML = html(); } else el = popover(button, html()).el;
   const bind = () => {
     el.querySelector('.st-size').oninput = e => { st.k = +e.target.value; styleChanged(); };
     el.querySelector('input[type=color]').oninput = e => { st.c = e.target.value; styleChanged(); el.querySelectorAll('.shape-b').forEach(b => { b.innerHTML = shapeSvg(b.dataset.shape, st.c, 16); }); };
@@ -63,13 +82,91 @@ function openLayerStyle(button) {
     if (!b) return;
     if (b.dataset.shape) st.shape = b.dataset.shape;
     else if (b.dataset.c) st.c = b.dataset.c;
-    else if (b.classList.contains('pal-none')) Object.assign(st, JSON.parse(JSON.stringify(MAP_DEFAULT[key])));
+    else if (b.classList.contains('pal-none')) Object.assign(st, layerDefault(key));
     else return;
     styleChanged(); el.innerHTML = html(); bind();
   });
 }
 document.querySelectorAll('.sw').forEach(b => { b.onclick = e => { e.preventDefault(); openLayerStyle(b); }; });
-$('swReset').onclick = () => { MS = cloneStyle(); styleChanged(); };
+/* Разворачиваемые строки легенды: стрелка справа открывает настройку вида слоя прямо в списке */
+function legendExpanders(root) {
+  root.querySelectorAll('label').forEach(lb => {
+    const sw = lb.querySelector('.sw');
+    if (!sw || lb.querySelector('.lg-more')) return;
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'lg-more'; b.setAttribute('aria-label', 'Настроить вид слоя'); b.setAttribute('aria-expanded', 'false');
+    b.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>';
+    lb.appendChild(b);
+    b.onclick = e => {
+      e.preventDefault(); e.stopPropagation();
+      let p = lb.nextElementSibling && lb.nextElementSibling.classList.contains('lg-panel') ? lb.nextElementSibling : null;
+      if (p) { p.remove(); b.setAttribute('aria-expanded', 'false'); return; }
+      p = document.createElement('div'); p.className = 'lg-panel';
+      lb.after(p); b.setAttribute('aria-expanded', 'true');
+      openLayerStyle(sw, p);
+    };
+  });
+}
+legendExpanders(document.querySelector('.legend'));
+/* Слои своих листов работ: строка на каждый лист с выполненными пикетами */
+const CL_OFF = new Set();
+function customLegend() {
+  const box = $('lgCustom'), c = F.custom || {};
+  const ids = Object.keys(c).filter(id => c[id].length);
+  const row = (id, n) => `<label data-c="${id}"><input type="checkbox"${CL_OFF.has(id) ? '' : ' checked'}><button type="button" class="sw" data-layer="${id}" title="Форма, размер и цвет точек"></button>` +
+    `${esc(layerTitle(id))} <span class="lg-n">${nf(n === undefined ? c[id].length / 6 : n)}</span></label>`;
+  // каждый вид работ - в вкладке своего журнала: встроенного (ГФО, ТГО) или своего
+  document.querySelectorAll('#legend .lg-cx').forEach(x => { x.innerHTML = ''; });
+  const panes = new Map();
+  for (const id of ids) {
+    const g = typeof navGroupOf === 'function' ? navGroupOf(id) : null, gid = g ? g.id : 'cx';
+    const fixed = document.querySelector(`#legend .lg-pane[data-pane="${gid}"] .lg-cx`);
+    if (fixed) { fixed.insertAdjacentHTML('beforeend', row(id)); continue; }
+    if (!panes.has(gid)) panes.set(gid, {title: g ? g.title : 'Свои листы', rows: []});
+    panes.get(gid).rows.push(row(id));
+  }
+  const spsx = document.querySelector('#legend .lg-pane[data-pane="sps"] .lg-cx');      // добавленные страницы SPS - во вкладке «Проектные SPS»
+  if (spsx) spsx.innerHTML = Object.entries(F.sps_x || {}).filter(([, a]) => a.length).map(([id, a]) => row(id, a.length / 2)).join('');
+  box.innerHTML = [...panes].map(([gid, p]) => `<div class="lg-pane" data-pane="${esc(gid)}" data-title="${esc(p.title)}">${p.rows.join('')}</div>`).join('');
+  const root = $('legend');
+  root.querySelectorAll('label[data-c] .sw').forEach(b => { b.onclick = e => { e.preventDefault(); openLayerStyle(b); }; });
+  root.querySelectorAll('label[data-c] input').forEach(i => { i.onchange = () => { const id = i.closest('label').dataset.c; if (i.checked) CL_OFF.delete(id); else CL_OFF.add(id); draw(); }; });
+  legendExpanders(root);
+  paintSwatches();
+  legendTabs();
+  periodKinds();
+}
+/* Вкладки слоёв: «Проектные SPS» отдельно, дальше - журналы с их видами работ, в конце «Прочее» */
+let LG_TAB = 'sps';
+function legendTabs() {
+  const panes = [...document.querySelectorAll('#legend .lg-pane')].filter(p => p.dataset.pane === 'sps' || p.dataset.pane === 'other' || p.querySelector('label:not([style*="display:none"]):not([style*="display: none"])'));
+  if (!panes.some(p => p.dataset.pane === LG_TAB)) LG_TAB = 'sps';
+  $('lgTabs').innerHTML = panes.map(p => `<button type="button" class="jt${p.dataset.pane === LG_TAB ? ' on' : ''}" data-pane="${esc(p.dataset.pane)}">${esc(p.dataset.title)}</button>`).join('');
+  document.querySelectorAll('#legend .lg-pane').forEach(p => { p.hidden = p.dataset.pane !== LG_TAB; });
+}
+$('lgTabs').onclick = e => { const b = e.target.closest('.jt'); if (!b) return; LG_TAB = b.dataset.pane; legendTabs(); };
+/* Период на карте - по виду работ: размотка и подмотка (слои «за период»), разбивка или свой лист работ */
+function periodKinds() {
+  const sel = $('mKind'), cur = sel.value || 'gfo';
+  const ids = Object.keys(F.custom || {});
+  sel.innerHTML = '<option value="gfo">Размотка и подмотка</option><option value="razb">Разбивка</option>' +
+    ids.map(id => `<option value="${id}">${esc(layerTitle(id))}</option>`).join('');
+  sel.value = [...sel.options].some(o => o.value === cur) ? cur : 'gfo';
+}
+const PK = {key: '', arr: null, src: null};
+/* Точки слоя (шаг 6: x, y, линия, пикет, дата, исполнитель) за выбранный период, если период выбран для этого вида работ */
+function perArr(kind, a) {
+  const k = $('mKind').value, d1 = $('mFrom').value, d2 = $('mTo').value;
+  if (k !== kind || !d1 || !d2 || !a) return a;
+  const key = kind + d1 + d2;
+  if (PK.key === key && PK.src === a) return PK.arr;
+  const out = [];
+  for (let i = 0; i < a.length; i += 6) { const d = F.dates[a[i + 4]]; if (d >= d1 && d <= d2) out.push(a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4], a[i + 5]); }
+  PK.key = key; PK.src = a; PK.arr = out;
+  return out;
+}
+const kindArr = kind => (kind === 'razb' ? F.staked : (F.custom || {})[kind]);
+$('swReset').onclick = () => { MS = cloneStyle(); styleChanged(); document.querySelectorAll('.lg-panel').forEach(p => p.remove()); };
 const colorsReady = loadMapStyle();
 
 /* Скрытие панели инструментов: карта занимает всю ширину, вернуть панель можно кнопкой «три точки» на карте.
@@ -107,6 +204,7 @@ async function loadField() {
     $('fieldLead').textContent = 'Заполните лист «Размотка» и нажмите «Размотать»: оборудование появится на карте.';
   } else {
     $('fieldTitle').textContent = 'На поле ' + nf(S.field) + ' ' + plural(S.field, 'канал', 'канала', 'каналов');
+    if (typeof accentTitles === 'function') setTimeout(accentTitles);
     // Число в заголовке - фактическое: считается по последнему событию каждого пикета,
     // поэтому повторные размотки и подмотки без размотки в него не входят.
     let lead = 'Оборудование лежит на ' + nf(S.field_lines) + ' ' + plural(S.field_lines, 'линии', 'линиях', 'линиях') + '.';
@@ -124,25 +222,42 @@ async function loadField() {
     return `<div class="ln"><b>${l}</b><span>${by[l].map(x => x[0] === x[1] ? x[0] : x[0] + '–' + x[1]).join(', ')}</span><i>${nf(n)}</i></div>`;
   }).join('') : '<div class="empty">На поле нет оборудования.</div>';
 
-  $('lgSps').style.display = F.schematic ? 'none' : '';
+  $('lgSps').style.display = $('lgSpsS').style.display = F.schematic ? 'none' : '';
+  F.sps_s = F.sps_s || []; F.sps_x = F.sps_x || {};
+  $('linesTitle').textContent = keys.length ? `Размотанные линии: ${nf(keys.length)}, каналов на поле: ${nf(keys.reduce((t, l) => t + by[l].reduce((s, x) => s + x[1] - x[0] + 1, 0), 0))}` : 'Размотанные линии';
   $('lgLeft').style.display = F.left.length ? '' : 'none';
   $('lgLost').style.display = F.lost.length ? '' : 'none';
   F.staked = F.staked || []; F.plan = F.plan || [];             // настольный сервер прежней версии их не присылает
   $('lgPlan').style.display = F.plan.length ? '' : 'none';
+  F.custom = F.custom || {}; customLegend();
   if (typeof loadDxf === 'function') { await loadDxf(); await loadTracks(); }
   $('mapNote').textContent = F.schematic ? 'Схема по номерам линий и пикетов. Заполните лист SPS, чтобы карта строилась в координатах.' : '';
   $('uBtn').disabled = F.schematic;
   $('uBtn').title = F.schematic ? 'Подложка привязывается к координатам листа SPS: сначала заполните его' : '';
   $('uList').style.display = F.schematic ? 'none' : '';
 
-  BSETS = F.sps.length ? [[F.sps, 2]] : [[F.field, 6], [F.left, 4], [F.lost, 4], [F.staked, 6], [F.plan, 4]];
+  BSETS = F.sps.length || F.sps_s.length || Object.keys(F.sps_x).length ? [[F.sps, 2], [F.sps_s, 2], ...Object.values(F.sps_x).map(a => [a, 2])] : [[F.field, 6], [F.left, 4], [F.lost, 4], [F.staked, 6], [F.plan, 4], ...Object.values(F.custom).map(a => [a, 6])];
   B = bounds(BSETS);
   if (!V.restored) { V.restored = true; setAngle(+PREFS.map_tilt || 0); }      // наклон прошлого сеанса
   $('mLevel').disabled = !B;
   await loadUnderlays();
   await loadPeriod();
-  resizeMap(); fit();
+  resizeMap();
+  if (V.hold && Date.now() - V.hold < 8000) { V.hold = 0; draw(); }      // после завершения работы вид не уходит: идёт анимация (js/work.js)
+  else fit();
 }
+/* Показать набор точек [[x, y], ...] крупно: вписать в окно с запасом (наклон не меняется) */
+window.frameOn = (pts, maxS = 3) => {
+  if (!pts || !pts.length || F.schematic) return;
+  const b = bounds([[pts.flat(), 2]], true), r = $('mapBox').getBoundingClientRect();
+  if (!b || !r.width) return;
+  const pad = 70, bottom = $('taskBar') && !$('taskBar').hidden ? Math.min(220, $('taskBar').offsetHeight + 20) : 0;
+  const w = Math.max(b.x1 - b.x0, 1), h = Math.max(b.y1 - b.y0, 1);
+  V.s = Math.min(maxS, (r.width - 2 * pad) / w, (r.height - 2 * pad - bottom) / h);
+  V.ox = (r.width - w * V.s) / 2 - b.x0 * V.s;
+  V.oy = (r.height - bottom + h * V.s) / 2 + b.y0 * V.s;
+  V.fitted = false; $('mReset').disabled = false; draw();
+};
 /* Границы точек. turned - в повёрнутых координатах вида: по ним карта вписывается в окно при наклоне. */
 function bounds(sets, turned) {
   let x0 = 1e18, x1 = -1e18, y0 = 1e18, y1 = -1e18, any = false;
@@ -154,10 +269,16 @@ function bounds(sets, turned) {
   return any ? {x0, x1, y0, y1} : null;
 }
 async function loadPeriod() {
+  const kind = $('mKind').value || 'gfo';
+  if (kind !== 'gfo') {                                     // разбивка или свой лист: точки слоя за период
+    const a = perArr(kind, kindArr(kind) || []), n = a.length / 6, title = layerTitle(kind);
+    $('mCount').textContent = $('mFrom').value && $('mTo').value ? `За период: ${title.toLowerCase()} — ${nf(n)} ${plural(n, 'пикет', 'пикета', 'пикетов')}` : '';
+    LC = null; draw(); return;
+  }
   const on = $('lRazm').checked || $('lPodm').checked;
   if (on && $('mFrom').value && $('mTo').value)
     P = await api(`/api/period?from=${$('mFrom').value}&to=${$('mTo').value}`);
-  $('mCount').textContent = on ? 'За период: размотано ' + nf(P.razm.length / 4) + ', подмотано ' + nf(P.podm.length / 4) : 'Включите слои «за период» справа от карты';
+  $('mCount').textContent = on ? 'За период: размотано ' + nf(P.razm.length / 4) + ', подмотано ' + nf(P.podm.length / 4) : 'Включите ниже слои «Размотано за период» и «Подмотано за период»';
   draw();
 }
 /* Быстрый выбор периода: отсчёт идёт от последнего дня работ. Слои «за период» включаются сами. */
@@ -167,7 +288,10 @@ $('mPresets').onclick = e => {
   const end = S.date_max || today(), days = {day: 0, week: 6, month: 29}[b.dataset.range];
   $('mTo').value = end;
   $('mFrom').value = days === undefined ? (S.date_min || end) : new Date(Date.parse(end) - days * 864e5).toISOString().slice(0, 10);
-  $('lRazm').checked = true; $('lPodm').checked = true;
+  const kind = $('mKind').value || 'gfo';
+  if (kind === 'gfo') { $('lRazm').checked = true; $('lPodm').checked = true; }
+  else if (kind === 'razb') $('lRazb').checked = true;
+  else { CL_OFF.delete(kind); const i = document.querySelector(`#legend label[data-c="${kind}"] input`); if (i) i.checked = true; }
   [...$('mPresets').children].forEach(x => x.classList.toggle('on', x === b));
   loadPeriod();
 };
@@ -278,8 +402,8 @@ function layer(a, step, st, z) {
    Холст перерисовывается, когда меняются данные, вид слоёв, наклон, размер окна, а после остановки жеста - и масштаб. */
 let LC = null, CULL = null, lcTimer = 0;
 const LC_MARGIN = .3;
-const layersKey = () => ['lSps', 'lPlan', 'lRazb', 'lField', 'lPodm', 'lRazm', 'lLeft', 'lLost'].map(id => ($(id).checked ? 1 : 0)).join('') +
-  DX.layers.map(l => (l.visible ? 1 : 0) + (l.labels ? 1 : 0) + l.color).join('');
+const layersKey = () => $('mKind').value + $('mFrom').value + $('mTo').value + ['lSps', 'lSpsS', 'lPlan', 'lRazb', 'lField', 'lPodm', 'lRazm', 'lLeft', 'lLost'].map(id => ($(id).checked ? 1 : 0)).join('') +
+  DX.layers.map(l => (l.visible ? 1 : 0) + (l.labels ? 1 : 0) + l.color).join('') + [...CL_OFF].join(',');
 function drawPoints(d, w, h) {
   const mx = Math.round(w * LC_MARGIN), my = Math.round(h * LC_MARGIN), W = Math.ceil((w + 2 * mx) * d), H = Math.ceil((h + 2 * my) * d);
   const c = LC && LC.canvas.width === W && LC.canvas.height === H ? LC.canvas : document.createElement('canvas');
@@ -293,8 +417,11 @@ function drawPoints(d, w, h) {
     if (window.dxfDraw) dxfDraw();
     const z = Math.max(1.3, Math.min(7, V.s * 18));
     if ($('lSps').checked) layer(F.sps, 2, MS.sps, z);
+    if ($('lSpsS').checked && F.sps_s) layer(F.sps_s, 2, msOf('spss'), z);
+    for (const [id, a] of Object.entries(F.sps_x || {})) if (!CL_OFF.has(id)) layer(a, 2, msOf(id), z);     // добавленные страницы SPS
     if ($('lPlan').checked) layer(F.plan, 4, MS.plan, z);
-    if ($('lRazb').checked) layer(F.staked, 6, MS.razb, z);       // разбитый пикет крупнее оборудования: виден каймой вокруг него
+    if ($('lRazb').checked) layer(perArr('razb', F.staked), 6, MS.razb, z);       // разбитый пикет крупнее оборудования: виден каймой вокруг него
+    for (const [id, a] of Object.entries(F.custom || {})) if (!CL_OFF.has(id)) layer(perArr(id, a), 6, msOf(id), z);   // свои листы работ
     if ($('lField').checked) layer(F.field, 6, MS.field, z);
     if ($('lPodm').checked) layer(P.podm, 4, MS.podm, z);
     if ($('lRazm').checked) layer(P.razm, 4, MS.razm, z);
@@ -335,7 +462,7 @@ function draw() {
   }
   const z = Math.max(1.3, Math.min(7, V.s * 18));
   if (!B && !u && !(window.TILES && TILES.last)) {
-    ctx.fillStyle = '#63636A'; ctx.font = '15px -apple-system,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#8B949E'; ctx.font = '15px Inter,-apple-system,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('Карта появится, когда на поле будет оборудование или заполнится лист SPS', w / 2, h / 2);
   }
   if (window.workDraw) workDraw(z);                         // треки, задание и найденные пикеты (js/work.js)
@@ -354,7 +481,7 @@ const redraw = () => { if (!drawRaf) drawRaf = requestAnimationFrame(() => { dra
 const local = e => { const r = cv.getBoundingClientRect(); return {x: e.clientX - r.left, y: e.clientY - r.top}; };
 cv.onpointerdown = e => {
   try { cv.setPointerCapture(e.pointerId); } catch (err) { /* не критично */ }
-  if (e.pointerType === 'mouse') { drag = {x: e.clientX, y: e.clientY}; return; }
+  if (e.pointerType === 'mouse') { drag = {x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY}; return; }
   touches.set(e.pointerId, local(e));
   $('tip').style.display = 'none';
   if (touches.size === 1) { const p = local(e); tap = {x: p.x, y: p.y, t: Date.now(), moved: false, lx: p.x, ly: p.y}; pinch = null; }
@@ -390,7 +517,10 @@ function moveTouch(e) {
   else { tap.lx = tap.x; tap.ly = tap.y; }
 }
 function liftTouch(e) {
-  if (e.pointerType === 'mouse') { drag = null; return; }
+  if (e.pointerType === 'mouse') {                         // щелчок мышью без сдвига: метки (поставить или открыть)
+    if (e.type === 'pointerup' && drag && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) { const p = local(e); if (!(window.marksTap && marksTap(p))) showTip(p.x, p.y, 12, true); }
+    drag = null; return;
+  }
   touches.delete(e.pointerId);
   if (pinch) {
     if (touches.size < 2) {                                 // остался один палец: продолжает сдвиг без скачка
@@ -435,8 +565,9 @@ function onTap(p) {
     lastTap = null; $('tip').style.display = 'none'; zoomAt(p.x, p.y, 2); return;
   }
   lastTap = {x: p.x, y: p.y, t: now};
+  if (window.marksTap && marksTap(p)) return;               // метки: поставить новую или открыть ту, что под пальцем
   if (window.workTap && workTap(p)) return;                 // задание на карте: касание предлагает начать работу
-  showTip(p.x, p.y, 24);                                    // палец неточнее мыши: радиус поиска точки больше
+  showTip(p.x, p.y, 24, true);                              // палец неточнее мыши: радиус поиска точки больше
 }
 function nearest(a, step, mx, my, best) {
   for (let i = 0; i < a.length; i += step) {
@@ -445,17 +576,19 @@ function nearest(a, step, mx, my, best) {
   }
 }
 function hover(e) { const p = local(e); showTip(p.x, p.y, 10); }
-function showTip(mx, my, radius) {
+function showTip(mx, my, radius, tap) {
   const r = cv.getBoundingClientRect(), best = {q: radius * radius, i: -1, a: null};
   if ($('lField').checked) nearest(F.field, 6, mx, my, best);
   if ($('lRazm').checked) nearest(P.razm, 4, mx, my, best);
   if ($('lPodm').checked) nearest(P.podm, 4, mx, my, best);
   if ($('lLeft').checked) nearest(F.left, 4, mx, my, best);
   if ($('lLost').checked) nearest(F.lost, 4, mx, my, best);
-  if ($('lRazb').checked) nearest(F.staked, 6, mx, my, best);
+  if ($('lRazb').checked) nearest(perArr('razb', F.staked), 6, mx, my, best);
   if ($('lPlan').checked) nearest(F.plan, 4, mx, my, best);
+  for (const [id, a0] of Object.entries(F.custom || {})) if (!CL_OFF.has(id)) { const a = perArr(id, a0), q = best.a; nearest(a, 6, mx, my, best); if (best.a !== q) best.cid = id; }
   nearest(FIND.pts, 4, mx, my, best);
   const t = $('tip');
+  if (best.i < 0 && tap && !F.schematic && ($('lSps').checked || $('lSpsS').checked) && window.NOTES) { sps_card(mx, my, radius); return; }
   if (best.i < 0) {                             // пикета под пальцем нет: может быть, это контур DXF
     const hint = window.dxfTip ? dxfTip(mx, my) : '';
     if (!hint) { t.style.display = 'none'; return; }
@@ -469,15 +602,36 @@ function showTip(mx, my, radius) {
   if (a === F.field) s += ' — на поле с ' + dru(F.dates[a[i + 4]]) + ', ' + F.names[a[i + 5]];
   else if (a === F.left) s += ' — оставленное оборудование';
   else if (a === F.lost) s += ' — утерянное оборудование';
-  else if (a === F.staked) s += ' — разбит ' + dru(F.dates[a[i + 4]]) + ', ' + F.names[a[i + 5]];
+  else if (a === perArr('razb', F.staked)) s += ' — разбит ' + dru(F.dates[a[i + 4]]) + ', ' + F.names[a[i + 5]];
   else if (a === F.plan) s += ' — задание на разбивку';
+  else if (best.cid && a === perArr(best.cid, F.custom[best.cid])) s += ' — ' + layerTitle(best.cid) + ' ' + dru(F.dates[a[i + 4]]) + ', ' + F.names[a[i + 5]];
   else if (a === FIND.pts) s += ' — найден';
   else s += a === P.razm ? ' — размотано за период' : ' — подмотано за период';
+  if (tap && window.NOTES) {                    // касание: плашка с кнопкой «Фото и описание»; указатель расстояния - на эту точку
+    t.style.display = 'none';
+    if (window.DIST) DIST.pick(a[i], a[i + 1], a[i + 2], a[i + 3]);
+    const cut = s.indexOf(' — '), pt = toScreen(a[i], a[i + 1]);
+    NOTES.card({key: NOTES.key(a[i + 2], a[i + 3]), title: cut > 0 ? s.slice(0, cut) : s, sub: cut > 0 ? s.slice(cut + 3) : '', x: pt[0], y: pt[1]});
+    return;
+  }
   t.textContent = s; t.style.display = 'block';
   t.style.left = Math.max(8, Math.min(mx + 14, r.width - t.offsetWidth - 8)) + 'px';
   t.style.top = (radius > 10 && my - 34 - t.offsetHeight < 8 ? my + 22 : Math.max(my - 34, 8)) + 'px';
 }
-for (const id of ['lSps', 'lField', 'lLeft', 'lLost', 'lRazb', 'lPlan', 'lTracks']) $(id).onchange = draw;
+/* Касание проектного пикета SPS (R или S): ближайший пикет листа, если он под пальцем */
+async function sps_card(mx, my, radius) {
+  const [x, y] = toWorld(mx, my);
+  let n = {};
+  try { n = await api(`/api/nearest?x=${x}&y=${y}`); } catch (e) { return; }
+  if (!n.line || n.dist * V.s > radius + 6) { $('tip').style.display = 'none'; NOTES.hide(); return; }
+  let xy = {};
+  try { xy = await api(`/api/picket?line=${n.line}&picket=${n.picket}`); } catch (e) { /* без координат */ }
+  const pt = xy.x !== undefined ? toScreen(xy.x, xy.y) : [mx, my];
+  if (window.DIST && xy.x !== undefined) DIST.pick(xy.x, xy.y, n.line, n.picket);
+  NOTES.card({key: NOTES.key(n.line, n.picket), title: 'Линия ' + n.line + ', ПП ' + n.picket, sub: 'проектный пикет SPS', x: pt[0], y: pt[1]});
+}
+for (const id of ['lSps', 'lSpsS', 'lField', 'lLeft', 'lLost', 'lRazb', 'lPlan', 'lTracks']) $(id).onchange = draw;
+$('mKind').onchange = () => { [...$('mPresets').children].forEach(x => x.classList.remove('on')); loadPeriod(); };
 for (const id of ['lRazm', 'lPodm']) $(id).onchange = loadPeriod;
 for (const id of ['mFrom', 'mTo']) $(id).onchange = () => { [...$('mPresets').children].forEach(x => x.classList.remove('on')); loadPeriod(); };
 $('mFit').onclick = fit;

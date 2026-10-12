@@ -1,7 +1,7 @@
 {
   "name": "razmotka-sp10-android",
   "private": true,
-  "description": "Оболочка Android для приложения «Контроль размотки СП10»: та же страница из папки android/ плюс фоновая геолокация, системный голос и сохранение файлов.",
+  "description": "Оболочка Android для приложения GeoLink: та же страница, что у версии для iPhone (папка android/), плюс фоновая геолокация, камера и сохранение файлов.",
   "dependencies": {
     "@capacitor/android": "^7.0.0",
     "@capacitor/app": "^7.0.0",

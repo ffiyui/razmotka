@@ -17,7 +17,7 @@ s = open(mf, encoding='utf-8').read()
 if 'xmlns:tools' not in s:
     s = s.replace('<manifest ', '<manifest xmlns:tools="http://schemas.android.com/tools" ', 1)
 perms = ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_LOCATION',
-         'POST_NOTIFICATIONS', 'RECORD_AUDIO', 'WAKE_LOCK', 'INTERNET']
+         'POST_NOTIFICATIONS', 'RECORD_AUDIO', 'WAKE_LOCK', 'INTERNET', 'CAMERA']   # CAMERA - фото к точкам и меткам
 block = ''.join(f'    <uses-permission android:name="android.permission.{p}" />\n' for p in perms if f'android.permission.{p}"' not in s)
 block += '    <uses-feature android:name="android.hardware.location.gps" android:required="false" />\n'
 block += ('    <queries>\n'
@@ -63,9 +63,9 @@ for d in os.listdir(os.path.join(HERE, 'res')):
 bg = os.path.join(res, 'values', 'ic_launcher_background.xml')
 if os.path.isfile(bg):
     t = open(bg, encoding='utf-8').read()
-    open(bg, 'w', encoding='utf-8').write(re.sub(r'#[0-9A-Fa-f]{6,8}', '#5AA8FC', t))
+    open(bg, 'w', encoding='utf-8').write(re.sub(r'#[0-9A-Fa-f]{6,8}', '#000000', t))
 
-# ---- заставка при запуске: значок на светлом фоне вместо значка Capacitor
+# ---- заставка при запуске: значок GeoLink на тёмном фоне вместо значка Capacitor
 try:
     from PIL import Image
     icon = Image.open(os.path.join(HERE, '..', 'icons', 'icon-512.png')).convert('RGBA')
@@ -74,7 +74,7 @@ try:
             if f == 'splash.png':
                 p = os.path.join(root, f)
                 w, h = Image.open(p).size
-                img = Image.new('RGBA', (w, h), (230, 234, 243, 255))
+                img = Image.new('RGBA', (w, h), (13, 17, 23, 255))
                 n = max(48, min(w, h) // 4)
                 img.alpha_composite(icon.resize((n, n), Image.LANCZOS), ((w - n) // 2, (h - n) // 2))
                 img.convert('RGB').save(p)

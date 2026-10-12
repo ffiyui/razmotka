@@ -15,5 +15,5 @@ cd android
 chmod +x gradlew
 ./gradlew assembleRelease --no-daemon --stacktrace
 mkdir -p ../out
-cp app/build/outputs/apk/release/app-release.apk ../out/razmotka-sp10.apk
+cp app/build/outputs/apk/release/app-release.apk ../out/GeoLink.apk
 ls -la ../out

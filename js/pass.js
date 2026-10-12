@@ -7,7 +7,10 @@
   const KEY = 'gl_pass', DEFAULT = '1234';
   let saved = null;
   try { saved = localStorage.getItem(KEY); } catch (e) { saved = null; }
-  const read = () => fetch('password.txt?t=' + Date.now(), {cache: 'no-store'})
+  /* В приложении Android страница лежит внутри самого приложения: свежий пароль берётся с сайта (GitHub Pages) */
+  const NATIVE_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const SITE = 'https://ffiyui.github.io/razmotka/password.txt';
+  const read = () => fetch((NATIVE_APP ? SITE : 'password.txt') + '?t=' + Date.now(), {cache: 'no-store'})
     .then(r => (r.ok ? r.text() : Promise.reject(new Error(r.status)))).then(t => t.split(/\r?\n/)[0].trim());
 
   function gate(want, again) {
@@ -38,6 +41,9 @@
     ready: (async () => {
       let cur = null;
       if (navigator.onLine !== false) { try { cur = await read(); } catch (e) { cur = null; } }
+      if (cur === null && saved === null && NATIVE_APP) {                  // приложение без сети при первом запуске: пароль из самого приложения
+        try { cur = (await (await fetch('password.txt')).text()).split(/\r?\n/)[0].trim(); } catch (e) { cur = null; }
+      }
       if (saved === null) { if (!document.body) await new Promise(r => document.addEventListener('DOMContentLoaded', r, {once: true})); gate(cur || DEFAULT, false); }
       else if (cur && cur !== saved) { if (!document.body) await new Promise(r => document.addEventListener('DOMContentLoaded', r, {once: true})); gate(cur, true); }
     })(),

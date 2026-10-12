@@ -42,4 +42,18 @@ if __name__ == '__main__':
     m = mark().resize((256, 256), Image.LANCZOS)
     w = Image.new('RGBA', (256, 256), (255, 255, 255, 0)); w.putalpha(m)
     w.crop(w.getbbox()).save(os.path.join(OUT, 'logo-mark.png'), optimize=True)
+    # значки приложения Android (native/res): обычный, круглый и передний план адаптивного значка (фон - чёрный)
+    NAT = os.path.join(HERE, '..', 'native', 'res')
+    for d, n in (('mdpi', 48), ('hdpi', 72), ('xhdpi', 96), ('xxhdpi', 144), ('xxxhdpi', 192)):
+        dd = os.path.join(NAT, 'mipmap-' + d); os.makedirs(dd, exist_ok=True)
+        icon(n).save(os.path.join(dd, 'ic_launcher.png'), optimize=True)
+        sq = icon(BIG, rounded=False); circle = Image.new('L', (BIG, BIG), 0)
+        ImageDraw.Draw(circle).ellipse([0, 0, BIG - 1, BIG - 1], fill=255)
+        rnd = Image.new('RGBA', (BIG, BIG), (0, 0, 0, 0)); rnd.paste(sq, (0, 0), circle)
+        rnd.resize((n, n), Image.LANCZOS).save(os.path.join(dd, 'ic_launcher_round.png'), optimize=True)
+        f = n * 108 // 48                                  # 108 dp, знак - в безопасной зоне 66 dp
+        mk = mark(); k = int(BIG * 66 / 108 * 1.12); sm = mk.resize((k, k), Image.LANCZOS)
+        fg_mask = Image.new('L', (BIG, BIG), 0); fg_mask.paste(sm, ((BIG - k) // 2, (BIG - k) // 2))
+        fg = Image.new('RGBA', (BIG, BIG), (255, 255, 255, 0)); fg.putalpha(fg_mask)
+        fg.resize((f, f), Image.LANCZOS).save(os.path.join(dd, 'ic_launcher_foreground.png'), optimize=True)
     print('ok')

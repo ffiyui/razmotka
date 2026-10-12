@@ -1,7 +1,7 @@
 {
-  "name": "Контроль размотки СП10",
-  "short_name": "Размотка СП10",
-  "description": "Журнал учёта размотки и подмотки оборудования бригад ГФО. Работает без сети. Версия для Android.",
+  "name": "GeoLink",
+  "short_name": "GeoLink",
+  "description": "GeoLink: журналы полевых работ ГФО и ТГО, карта, метки и учёт. Работает без сети. Версия для Android.",
   "lang": "ru",
   "dir": "ltr",
   "start_url": "./",
@@ -9,8 +9,8 @@
   "id": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#E6EAF3",
-  "theme_color": "#E6EAF3",
+  "background_color": "#0D1117",
+  "theme_color": "#0D1117",
   "categories": [
     "productivity",
     "utilities"

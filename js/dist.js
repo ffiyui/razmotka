@@ -51,10 +51,10 @@
   const arrow = deg => `<svg width="16" height="16" viewBox="0 0 16 16" style="transform:rotate(${Math.round(deg)}deg)" aria-hidden="true"><path d="M8 1.5l4.5 11L8 10l-4.5 2.5z" fill="currentColor"/></svg>`;
   window.distDraw = () => {
     if (!D.on) return;
-    const chip = $('distChip'), t = D.target();
-    if (!t) { chip.innerHTML = '<span>Выберите точку: коснитесь её на карте</span>'; return; }
+    const chip = $('distChip'), t = D.target(), set = h => { if (D.html !== h) { D.html = h; chip.innerHTML = h; } };   // плашка меняется, только когда изменился текст
+    if (!t) { set('<span>Выберите точку: коснитесь её на карте</span>'); return; }
     const name = (t.line != null ? 'Л ' + t.line + ' · ' : '') + (t.picket != null ? 'ПП ' + t.picket : 'точка');
-    if (!GEO.xy) { chip.innerHTML = `<b>${esc(name)}</b><span>жду GPS…</span>`; drawRing(t); return; }
+    if (!GEO.xy) { set(`<b>${esc(name)}</b><span>жду GPS…</span>`); drawRing(t); return; }
     const d = Math.hypot(t.x - GEO.xy[0], t.y - GEO.xy[1]);
     const a = toScreen(GEO.xy[0], GEO.xy[1]), b = toScreen(t.x, t.y);
     const deg = Math.atan2(b[0] - a[0], -(b[1] - a[1])) * 180 / Math.PI;     // направление на экране: 0 - вверх
@@ -63,8 +63,8 @@
     ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
     ctx.restore();
     drawRing(t);
-    chip.innerHTML = `<b>${esc(name)}</b><span class="dc-m">${fmtM(d)}</span><span class="dc-a">${arrow(deg)}</span>` +
-      (D.manual ? '<button type="button" class="dc-x" aria-label="Вернуть указатель к заданию">↺</button>' : '');
+    set(`<b>${esc(name)}</b><span class="dc-m">${fmtM(d)}</span><span class="dc-a">${arrow(Math.round(deg / 5) * 5)}</span>` +
+      (D.manual ? '<button type="button" class="dc-x" aria-label="Вернуть указатель к заданию">↺</button>' : ''));
   };
   function drawRing(t) {
     const [x, y] = toScreen(t.x, t.y);

@@ -1,7 +1,7 @@
 {
   "appId": "ru.sp10.razmotka",
-  "appName": "Размотка СП10",
+  "appName": "GeoLink",
   "webDir": "www",
   "server": {"androidScheme": "https"},
-  "android": {"backgroundColor": "#E6EAF3"}
+  "android": {"backgroundColor": "#0D1117"}
 }

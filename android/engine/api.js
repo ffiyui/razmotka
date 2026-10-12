@@ -19,6 +19,25 @@ globalThis.RZ = globalThis.RZ || {};
     ctx.db.set('ui', j);
     return {ok: true};
   }
+  /* Фото и описания точек карты и меток (GeoLink). Ключ: p:линия:пикет - пикет, m:номер - метка.
+     notes = {ключ: {text, photo, ts}}; само фото (JPEG как data:-адрес) лежит отдельно, под 'blob:note:ключ' */
+  const NOTE_KEY = /^(p:\d{1,6}:\d{1,6}|m:[a-z0-9]{2,30})$/;
+  const note_key = k => { if (!NOTE_KEY.test(String(k || ''))) throw new ValidationError('Неизвестная точка.'); return String(k); };
+  function note_photo(ctx, a) { return {data: ctx.db.get('blob:note:' + note_key(a.key), null)}; }
+  function note_save(ctx, j) {
+    const key = note_key(j && j.key), all = {...(ctx.db.get('notes', {}) || {})}, was = all[key] || {text: '', photo: false};
+    if (j.remove) { delete all[key]; ctx.db.set('blob:note:' + key, null); ctx.db.set('notes', all); return {ok: true}; }
+    const n = {text: was.text, photo: !!was.photo, ts: new Date().toISOString()};
+    if (typeof j.text === 'string') n.text = j.text.slice(0, 4000);
+    if (j.photo === null) { n.photo = false; ctx.db.set('blob:note:' + key, null); }
+    else if (typeof j.photo === 'string') {
+      if (!/^data:image\/(jpeg|png|webp);base64,/.test(j.photo) || j.photo.length > 8e6) throw new ValidationError('Фото не сохранено: неподходящий файл.');
+      n.photo = true; ctx.db.set('blob:note:' + key, j.photo);
+    }
+    if (!n.text && !n.photo) delete all[key]; else all[key] = n;
+    ctx.db.set('notes', all);
+    return {ok: true, note: all[key] || null};
+  }
   function prefs_save(ctx, j) {
     if (!j || typeof j !== 'object' || Array.isArray(j) || JSON.stringify(j).length > 600000) throw new ValidationError('Настройки не сохранены.');
     ctx.db.set('prefs', {...(ctx.db.get('prefs', {}) || {}), ...j});
@@ -133,6 +152,11 @@ globalThis.RZ = globalThis.RZ || {};
     '/api/field': (ctx) => RZ.reports.field_map(ctx.db),
     '/api/period': (ctx, a) => RZ.reports.period(ctx.db, a.from || '', a.to || ''),
     '/api/stats': (ctx, a) => RZ.reports.stats(ctx.db, a.from || '', a.to || ''),
+    '/api/leaders': (ctx, a) => RZ.reports.leaders(ctx.db, a.from || '', a.to || ''),
+    '/api/stats/sheet': (ctx, a) => RZ.reports.sheet_stats(ctx.db, a.name || '', a.from || '', a.to || ''),
+    '/api/notes': (ctx) => ctx.db.get('notes', {}) || {},
+    '/api/note/photo': note_photo,
+    '/api/custom': (ctx) => RZ.svc_sheets.custom_list(ctx.db),
     '/api/check': (ctx) => RZ.reports.check(ctx.db),
     '/api/export': exporter,
     '/api/ping': () => ({ok: true, app: 'razmotka'}),
@@ -158,9 +182,11 @@ globalThis.RZ = globalThis.RZ || {};
     '/api/cleanup': (ctx, j) => RZ.svc_sheets.cleanup(ctx.db, ctx.cfg, j.from, j.to, j.types || []),
     '/api/clear': (ctx) => RZ.svc_sheets.clear(ctx.db, ctx.cfg),
     '/api/settings': settings,
+    '/api/custom': (ctx, j) => RZ.svc_sheets.custom_save(ctx.db, ctx.cfg, j),
     '/api/crs': crs_save,
     '/api/ui': ui_save,
     '/api/prefs': prefs_save,
+    '/api/note': note_save,
     '/api/underlay': (ctx, j) => RZ.underlay.save_meta(ctx.db, j),
     '/api/underlay/check': (ctx, j) => RZ.underlay.check(j),
     '/api/underlay/remove': (ctx, j) => RZ.underlay.remove(ctx.db, j.id),
@@ -171,7 +197,7 @@ globalThis.RZ = globalThis.RZ || {};
     '/api/dxf/remove': dxf_remove,
     '/api/tracks': tracks_save,
     '/api/project/apply': (ctx, j) => RZ.project.apply(ctx.db, ctx.cfg, j.token, j.mode || 'merge', j.parts || null),
-    '/api/project/discard': (ctx, j) => RZ.project.discard(j.token),
+    '/api/project/discard': (ctx, j) => RZ.project.discard(j.token, ctx.db),
     '/api/bye': () => ({ok: true}),
     '/api/quit': () => ({ok: true}),
   };

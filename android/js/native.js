@@ -24,7 +24,7 @@
       return navigator.geolocation.watchPosition(onFix, onErr, {enableHighAccuracy: true, maximumAge: 1000, timeout: 30000});
     }
     return BG.addWatcher({
-      backgroundTitle: 'Размотка СП10',
+      backgroundTitle: 'GeoLink',
       backgroundMessage: 'Определяется положение: задание или запись трека',
       requestPermissions: true, stale: false, distanceFilter: 0,
     }, (loc, err) => {

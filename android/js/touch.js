@@ -42,7 +42,7 @@
     const d = e.detail;
     if (!matchMedia('(pointer:coarse)').matches) return;       // с мышью панель не нужна
     if (d.on) { accGrid = d.grid; accT.textContent = d.title; body.classList.add('accbar'); }
-    else if (accGrid === d.grid) { accGrid = null; body.classList.remove('accbar'); }
+    else if (accGrid === d.grid) { accGrid = null; body.classList.remove('accbar'); body.classList.add('tabhold'); clearTimeout(window.tabHoldT); window.tabHoldT = setTimeout(() => body.classList.remove('tabhold'), 600); }   // касание «Готово» не должно попасть в нижнюю панель
   });
   const press = e => {
     const b = e.target.closest('button');

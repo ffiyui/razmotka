@@ -58,6 +58,14 @@ globalThis.RZ = globalThis.RZ || {};
   ];
 
   /* Разбивка: топографы выносят пикеты на местность. Первые шесть столбцов те же, что у размотки */
+  /* Столбцы листов SPS R и SPS S */
+  const SPS_COLS = () => [
+    col('line', 'Профиль', 'int', 110, {lo: 1, hi: 99999, err_title: 'Профиль', err: 'Введите номер профиля: целое число'}),
+    col('picket', 'Пикет', 'int', 110, PICKET_ERR('Пикет')),
+    col('x', 'X', 'num', 150, {err_title: 'X', err: 'Введите число, например 457982,96'}),
+    col('y', 'Y', 'num', 150, {err_title: 'Y', err: 'Введите число, например 5704018,11'}),
+    col('z', 'Z', 'num', 110, {err_title: 'Z', err: 'Введите число, например 123,6'}),
+  ];
   const RAZB_COLS = () => [
     col('date', 'Дата', 'date', 104, DATE_ERR),
     col('worker', 'ФИО топографа', 'text', 184, {suggest: 'topo'}),
@@ -120,21 +128,25 @@ globalThis.RZ = globalThis.RZ || {};
       col('name', 'ФИО топографа', 'text', 260),
       col('same', 'ID топографа (дубль)', 'calc', 190, {calc: 'same_id'}),
     ], 'workers', {heading: false, blank: 20}),
-    /* Координаты пикетов. Из этого листа движок берёт систему координат для карты */
-    sps: sheet('sps', 'SPS', [
+    /* Координаты пикетов. Из этого листа (и из «SPS S») движок берёт систему координат для карты */
+    sps: sheet('sps', 'SPS R', [
       col('line', 'Профиль', 'int', 110, {lo: 1, hi: 99999, err_title: 'Профиль', err: 'Введите номер профиля: целое число'}),
       col('picket', 'Пикет', 'int', 110, PICKET_ERR('Пикет')),
       col('x', 'X', 'num', 150, {err_title: 'X', err: 'Введите число, например 457982,96'}),
       col('y', 'Y', 'num', 150, {err_title: 'Y', err: 'Введите число, например 5704018,11'}),
       col('z', 'Z', 'num', 110, {err_title: 'Z', err: 'Введите число, например 123,6'}),
     ], 'sps', {heading: false, blank: 200,
-      hint: 'Координаты пикетов. Вставьте сюда столбцы из Excel: по ним строится карта на экране «Поле» и проверяется, существует ли пикет.'}),
+      hint: 'Координаты пикетов приёма (R). Вставьте сюда столбцы из Excel: по ним строится карта и проверяется, существует ли пикет. Пункты возбуждения (S) - на листе «SPS S».'}),
+    /* Проектные пункты возбуждения (S): свои профили и пикеты, координаты берутся так же, как из SPS R.
+       Вместе R и S - проектная сетка: все виды работ ищут координаты в обоих листах */
+    spss: sheet('spss', 'SPS S', SPS_COLS(), 'sps', {heading: false, blank: 200,
+      hint: 'Координаты пунктов возбуждения (S). Профили и пикеты свои, не как в SPS R: вместе листы составляют проектную сетку.'}),
   };
   for (const s of Object.values(SHEETS)) s.meta = () => meta(s);
   const JOURNAL = ['razm', 'podm', 'oo', 'snake', 'info', 'workers'];     // листы книги «Журнал ГФО»
   const WORK = ['razm', 'podm', 'razb'];                                  // листы с проведением: строка ждёт кнопки
-  const ROWS = ['razm', 'podm', 'razb', 'oo', 'snake', 'info', 'workers', 'topo'];   // все листы, кроме SPS
-  const ORDER = [...JOURNAL, 'razb', 'topo', 'sps'];
+  const ROWS = ['razm', 'podm', 'razb', 'oo', 'snake', 'info', 'workers', 'topo', 'spss'];   // все листы, кроме SPS R (spss - SPS S, в журнал не входит)
+  const ORDER = [...JOURNAL, 'razb', 'topo', 'sps', 'spss'];
 
   /* Проверки значений отдельных ячеек листа «Общая информация» (как в книге) */
   const INFO_RULES = {4: [1, 99, 'Номер партии?', 'Введите корректный номер партии']};
@@ -289,8 +301,66 @@ globalThis.RZ = globalThis.RZ || {};
     return String(value);
   }
 
+  /* ---------------------------------------------------------------- свои листы
+     Пользователь создаёт журналы (вкладки на главной) и в них листы трёх видов:
+     work - таблица работ, как «Разбивка»: строка - линия и диапазон пикетов, кнопка «Провести» отмечает пикеты
+            выполненными (без учёта оборудования на поле);
+     workers - таблица ID исполнителей, как «ID топографов»;
+     plain - простая таблица: дата, линия, пикет, текст, примечание.
+     Описания хранятся в базе (часть custom) и в файле проекта; здесь они превращаются в обычные листы. */
+  const CUSTOM_KINDS = ['work', 'workers', 'plain', 'sps'];
+  const BUILTIN = new Set(Object.keys(SHEETS));
+  const custom_id = id => typeof id === 'string' && /^c[a-z0-9]{2,24}$/.test(id) && !BUILTIN.has(id);
+  function custom_sheet(d) {
+    const title = String(d.title || 'Лист').slice(0, 60), lookup = custom_id(d.lookup) || d.lookup === 'workers' ? d.lookup : 'topo';
+    if (d.kind === 'workers') return sheet(d.id, title, [
+      col('id', 'ID исполнителя', 'int', 120, {lo: 1, hi: 999999}),
+      col('name', 'ФИО исполнителя', 'text', 260),
+      col('same', 'ID (дубль)', 'calc', 160, {calc: 'same_id'}),
+    ], 'workers', {heading: false, blank: 20});
+    if (d.kind === 'sps') return sheet(d.id, title, SPS_COLS(), 'sps', {heading: false, blank: 200,     // ещё одна страница SPS
+      hint: 'Координаты пикетов этой страницы SPS. Вместе с SPS R и SPS S - проектная сетка.'});
+    if (d.kind === 'plain') return sheet(d.id, title, [
+      col('date', 'Дата', 'date', 104, DATE_ERR),
+      col('line', 'Линия', 'int', 84, LINE_ERR),
+      col('picket', 'Пикет', 'int', 90, PICKET_ERR('Пикет')),
+      col('text', 'Текст', 'text', 240),
+      col('note', 'Примечание', 'text', 240),
+    ], 'plain', {heading: false, blank: 60});
+    return sheet(d.id, title, [
+      col('date', 'Дата', 'date', 104, DATE_ERR),
+      col('worker', 'ФИО исполнителя', 'text', 184, {suggest: lookup}),
+      col('line', 'Линия', 'int', 84, LINE_ERR),
+      col('p1', 'Начальный ПП', 'int', 132, PICKET_ERR('Начальный ПП')),
+      col('p2', 'Конечный ПП', 'int', 126, PICKET_ERR('Конечный ПП')),
+      col('count', 'Кол-во пикетов', 'calc', 138, {calc: 'channels'}),
+      col('note', 'Примечание', 'text', 280),
+      col('wid', 'ID исполнителя', 'calc', 118, {calc: 'worker_id'}),
+    ], 'work', {wtype: 2, button: String(d.button || 'Провести').slice(0, 30), undo: 'Отменить проведение', lookup,
+      prefix: String(d.prefix || 'Журнал').slice(0, 60), unit: 'пикет'});
+  }
+  /* Ставит свои листы: прежние свои убираются, встроенные не трогаются. Возвращает принятые описания */
+  function register_custom(defs) {
+    for (const id of Object.keys(SHEETS)) if (!BUILTIN.has(id)) delete SHEETS[id];
+    const keep = a => { const b = a.filter(id => BUILTIN.has(id)); a.length = 0; a.push(...b); };
+    keep(WORK); keep(ROWS); keep(ORDER);
+    const ok = [];
+    for (const d of Array.isArray(defs) ? defs : []) {
+      if (!d || !custom_id(d.id) || !CUSTOM_KINDS.includes(d.kind) || SHEETS[d.id]) continue;
+      const s = custom_sheet(d);
+      s.custom = true; s.journal = String(d.journal || ''); s.meta = () => ({...meta(s), custom: true, journal: s.journal});
+      SHEETS[d.id] = s; ROWS.push(d.id); ORDER.splice(ORDER.indexOf('sps'), 0, d.id);
+      if (s.kind === 'work') WORK.push(d.id);
+      ok.push({id: d.id, kind: d.kind, title: s.title, journal: s.journal, lookup: s.lookup, button: s.button, prefix: s.prefix});
+    }
+    return ok;
+  }
+
+  /* Листы с координатами проектной сетки: SPS R, SPS S и добавленные страницы SPS */
+  const is_sps = n => !!(SHEETS[n] && SHEETS[n].kind === 'sps');
   RZ.sh = {
-    TITLE_PREFIX, INFO_PARTY_ROW, MISSING, NO_VALUE, SHEETS, JOURNAL, ORDER, WORK, ROWS, INFO_RULES, INFO_DEFAULT,
+    is_sps, TITLE_PREFIX, INFO_PARTY_ROW, MISSING, NO_VALUE, SHEETS, JOURNAL, ORDER, WORK, ROWS, INFO_RULES, INFO_DEFAULT,
+    CUSTOM_KINDS, BUILTIN, custom_id, register_custom,
     parse_date, parse_int, parse_num, normalize, channels, worker_lookup, worker_id, computed, sheet_index,
     blank_values, is_blank, display, round4, round_half_even,
   };

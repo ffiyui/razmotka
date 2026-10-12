@@ -64,7 +64,7 @@ globalThis.RZ = globalThis.RZ || {};
   }
 
   /* Спорные места разбивки: [blocking, warnings]. staked_known(line, p1, p2) -> сколько пикетов уже разбито */
-  function review_stake(intervals, today, sps_known, staked_known, rules) {
+  function review_stake(intervals, today, sps_known, staked_known, rules, done_word = 'разбиты') {
     let future = 0, unknown = 0, repeat = 0;
     const seen = new Set();
     for (const iv of intervals) {
@@ -77,7 +77,7 @@ globalThis.RZ = globalThis.RZ || {};
     const blocking = [], warnings = [];
     if (future) (rules.block_future_dates ? blocking : warnings).push(`строк с датой позже сегодняшней: ${future}`);
     if (unknown) (rules.block_unknown_pickets ? blocking : warnings).push(`пикетов, которых нет в SPS: ${unknown}`);
-    if (repeat) warnings.push(`пикетов, которые уже разбиты: ${repeat}`);
+    if (repeat) warnings.push(`пикетов, которые уже ${done_word}: ${repeat}`);
     return [blocking, warnings];
   }
 

@@ -8,14 +8,19 @@
 const NARROW_Q = '(max-width:820px), (pointer:coarse) and (max-height:500px)';     // тот же запрос, что в css/app.css
 const isNarrow = () => window.matchMedia(NARROW_Q).matches;
 const isTouch = () => window.matchMedia('(pointer:coarse)').matches;
-const NAV_PAGES = {razm: 'Размотка', podm: 'Подмотка', razb: 'Разбивка', topo: 'ID топографов', tracks: 'Треки', oo: 'Оставленное оборудование', snake: 'Змейки и вылеты',
-  info: 'Общая информация', workers: 'ID старших', field: 'Поле', stats: 'Учёт', check: 'Проверка', sps: 'SPS', data: 'Данные'};
+const NAV_PAGES = {home: 'Главная', settings: 'Настройки', razm: 'Размотка', podm: 'Подмотка', razb: 'Разбивка', topo: 'ID топографов', tracks: 'Треки', oo: 'Оставленное оборудование', snake: 'Змейки и вылеты',
+  info: 'Общая информация', workers: 'ID старших', field: 'Поле', stats: 'Учёт', check: 'Проверка', sps: 'SPS', spss: 'SPS S', data: 'Данные'};
 const NAV_BADGE = {razm: 'nav-razm', podm: 'nav-podm', razb: 'nav-razb', check: 'navbad'};
 const NAV_OLD_SUB = 'Журнал учёта работы ГФО';          // подпись прежних версий: заменяется новой
-const navDefault = () => ({brand: 'Контроль размотки', sp: 'СП10', sub: 'Журнал учёта оборудования и работ бригад ГФО', groups: [
-  {title: 'Журнал', items: ['razm', 'podm', 'razb', 'oo', 'snake', 'info', 'workers', 'topo']},
-  {title: 'Отчёты', items: ['field', 'tracks', 'stats', 'check', 'sps']},
-  {title: 'Служебное', items: ['data']}]});
+/* Журналы - разделы меню: у каждого своё название, значок и листы. Отчёты - отдельный раздел (report).
+   Свои журналы и листы пользователь добавляет сам (js/journals.js). */
+const navDefault = () => ({v: 2, brand: 'GeoLink', sp: 'СП10', sub: '', icons: {}, titles: {}, groups: [
+  {id: 'gfo', title: 'Журнал ГФО', icon: 'reel', items: ['razm', 'podm', 'oo', 'snake', 'info', 'workers']},
+  {id: 'tgo', title: 'Журнал ТГО', icon: 'flagpole', items: ['razb', 'topo']},
+  {id: 'rep', title: 'Отчёты', icon: 'table', report: true, items: ['tracks', 'stats', 'check', 'sps']}]});
+/* «Карта», «Данные» и «Настройки» - в нижней панели, в меню их нет */
+const NAV_HIDDEN = new Set(['field', 'data', 'settings', 'home', 'spss']);   // SPS S и другие страницы SPS - вкладками на странице «SPS»
+const isCustomId = id => typeof id === 'string' && /^c[a-z0-9]{2,24}$/.test(id) && !Object.prototype.hasOwnProperty.call(NAV_PAGES, id);   // не «check» и не другие встроенные
 let NAV = navDefault(), navDrag = null;
 
 const navIsFolder = x => x !== null && typeof x === 'object';
@@ -25,10 +30,11 @@ const navText = (s, fallback) => (typeof s === 'string' && s.trim() ? s.trim().s
 function navNormalize(saved) {
   const def = navDefault();
   if (!saved || !Array.isArray(saved.groups) || !saved.groups.length) return def;
+  if (saved.v !== 2) return {...def, sp: navText(saved.sp, def.sp)};           // меню прежних версий: раскладка GeoLink, номер партии сохраняется
   const seen = new Set();
-  const page = id => (typeof id === 'string' && NAV_PAGES[id] && !seen.has(id) ? (seen.add(id), id) : null);
-  const out = {brand: navText(saved.brand, def.brand), sp: navText(saved.sp, def.sp),
-               sub: saved.sub === NAV_OLD_SUB ? def.sub : navText(saved.sub, def.sub), groups: []};
+  const page = id => (typeof id === 'string' && (NAV_PAGES[id] || isCustomId(id)) && !NAV_HIDDEN.has(id) && !seen.has(id) ? (seen.add(id), id) : null);
+  const out = {v: 2, brand: navText(saved.brand, def.brand), sp: typeof saved.sp === 'string' ? saved.sp.trim().slice(0, 40) : def.sp, sub: '',
+               icons: saved.icons && typeof saved.icons === 'object' ? {...saved.icons} : {}, titles: saved.titles && typeof saved.titles === 'object' ? {...saved.titles} : {}, groups: []};
   saved.groups.slice(0, 12).forEach((g, k) => {
     const items = [];
     for (const it of Array.isArray(g.items) ? g.items : []) {
@@ -37,11 +43,13 @@ function navNormalize(saved) {
         if (inner.length) items.push({title: navText(it.title, 'Папка'), open: it.open !== false, items: inner});
       } else { const id = page(it); if (id) items.push(id); }
     }
-    out.groups.push({title: navText(g.title, def.groups[k] ? def.groups[k].title : 'Раздел'), items});
+    const gid = typeof g.id === 'string' && g.id ? g.id.slice(0, 40) : 'g' + k;
+    out.groups.push({id: gid, title: navText(g.title, 'Журнал'), icon: typeof g.icon === 'string' ? g.icon : 'journal', report: !!g.report, items});
   });
-  def.groups.forEach((g, k) => g.items.forEach((id, n) => {         // новые страницы программы попадают в свой раздел,
+  for (const dg of def.groups) if (!out.groups.some(g => g.id === dg.id)) out.groups.push({...dg, items: []});   // встроенный журнал не теряется
+  def.groups.forEach(g => g.items.forEach((id, n) => {              // новые страницы программы попадают в свой раздел,
     if (seen.has(id)) return;                                        // по возможности сразу за своей соседкой («Разбивка» - за «Подмоткой»)
-    const items = (out.groups[k] || out.groups[out.groups.length - 1]).items, at = items.indexOf(g.items[n - 1]);
+    const items = out.groups.find(x => x.id === g.id).items, at = items.indexOf(g.items[n - 1]);
     if (at >= 0) items.splice(at + 1, 0, id); else items.push(id);
     seen.add(id);
   }));
@@ -62,9 +70,12 @@ function navFind(node) {
 function navSave() { post('/api/ui', NAV).catch(() => {}); }
 
 /* ---------- отрисовка ---------- */
+/* Название страницы: своё (переименованная вкладка), иначе из листа или по умолчанию */
+const navTitle = id => (NAV.titles && NAV.titles[id]) || (typeof Sheets !== 'undefined' && Sheets.pages[id] && Sheets.pages[id].meta.custom && Sheets.pages[id].meta.title) || NAV_PAGES[id] || '';
 function navLink(id) {
-  const badge = NAV_BADGE[id] ? ` <span class="n" id="${NAV_BADGE[id]}"></span>` : '';
-  return `<a href="#${id}" data-p="${id}" draggable="true">${esc(NAV_PAGES[id])}${badge}</a>`;
+  if (!navTitle(id)) return '';                                      // свой лист, которого на этом устройстве ещё нет
+  const badge = NAV_BADGE[id] ? ` <span class="n" id="${NAV_BADGE[id]}"></span>` : ` <span class="n" id="nav-${id}"></span>`;
+  return `<a href="#${id}" data-p="${id}" draggable="true">${esc(navTitle(id))}${badge}</a>`;
 }
 function navRender() {
   const keep = {};
@@ -89,6 +100,7 @@ function navRender() {
   $('navreset').style.display = JSON.stringify(NAV) === JSON.stringify(navDefault()) ? 'none' : '';
   navFitBrand();
   navMark(location.hash.slice(1));
+  homeRender();
 }
 /* Название программы с номером партии - одна строка. Если она не помещается (другой шрифт, своё длинное название),
    шрифт понемногу уменьшается; совсем длинное название переносится. Кнопка «скрыть меню» встаёт под названием. */
@@ -103,6 +115,7 @@ function navFitBrand() {
 }
 /* Подсветка текущей страницы; папка с ней раскрывается */
 function navMark(p) {
+  if (typeof Sheets !== 'undefined' && Sheets.pages[p] && Sheets.pages[p].meta.kind === 'sps') p = 'sps';     // все страницы SPS - пункт «SPS»
   document.querySelectorAll('#navlist a').forEach(a => a.classList.toggle('on', a.dataset.p === p));
   const f = navFind(p);
   if (f && f.folder && !f.folder.open) { f.folder.open = true; navRender(); }

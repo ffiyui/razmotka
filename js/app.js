@@ -30,7 +30,7 @@ window.onhashchange=()=>show(location.hash.slice(1));
 
 markDirty();
 Splash.step('Читаю настройки',.15);
-initNav()
+window.APP_READY=initNav()
   .then(()=>{Splash.step('Считаю оборудование на поле',.45);return loadSummary()})
   .then(()=>{Splash.step('Открываю журнал',.75);return initSheets()})
   .then(()=>show(location.hash.slice(1)))

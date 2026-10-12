@@ -940,6 +940,8 @@ prjFill();
 /* Android: файл .rzm, открытый из файлового менеджера или мессенджера, сразу загружается */
 if (window.NATIVE && NATIVE.onOpenFile) NATIVE.onOpenFile(async file => {
   try { await colorsReady; } catch (e) { /* без настроек */ }
+  for (let i = 0; !window.APP_READY && i < 600; i++) await new Promise(r => setTimeout(r, 50));   // app.js ещё не запущен
+  try { await window.APP_READY; } catch (e) { /* запуск прошёл с ошибкой - файл всё равно проверяется */ }   // файл пришёл при запуске: сначала приложение готово
   if (location.hash !== '#data') { history.pushState(null, '', '#data'); await show('data'); }
   loadProjectFiles([file]);
 });

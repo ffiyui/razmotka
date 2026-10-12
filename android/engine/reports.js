@@ -29,9 +29,11 @@ globalThis.RZ = globalThis.RZ || {};
       this.points = new Map();
       this.list = [];                                           // [линия, пикет, x, y] для поиска ближайшего пикета
       this.grid = null;
-      this.background = [];
+      this.background = [];                                     // проектные пикеты SPS R (x, y подряд)
+      this.background_s = [];                                   // проектные пункты SPS S
+      this.background_x = {};                                   // добавленные страницы SPS: {лист: [x, y, ...]}
       const ends = new Map();                                   // линия -> [мин. пикет, его xy, макс. пикет, его xy]
-      for (const [line, picket, x, y] of repo.sps_points()) {
+      for (const [line, picket, x, y, s] of repo.sps_points()) {
         const key = line * 1e6 + picket;
         if (!this.points.has(key)) {                            // как ВПР: берётся первое совпадение
           this.points.set(key, [round_to(x, 1), round_to(y, 1)]);
@@ -41,7 +43,7 @@ globalThis.RZ = globalThis.RZ || {};
           if (picket < e[0]) { e[0] = picket; e[1] = [x, y]; }
           if (picket > e[2]) { e[2] = picket; e[3] = [x, y]; }
         }
-        this.background.push(round_to(x, 1), round_to(y, 1));
+        (s === 0 ? this.background : s === 1 ? this.background_s : (this.background_x[s] = this.background_x[s] || [])).push(round_to(x, 1), round_to(y, 1));
       }
       this.line_angle = line_angle(ends.values());
       this.schematic = this.points.size === 0;
@@ -140,6 +142,8 @@ globalThis.RZ = globalThis.RZ || {};
       o.party = RZ.svc_sheets.party(repo);
       o.drafts = RZ.svc_sheets.draft_counts(repo);
       o.draft_channels = RZ.svc_sheets.draft_channels(repo);
+      o.done = {};                                     // проведено по листам работ: каналы размотки/подмотки, пикеты разбивки и своих листов
+      for (const name of RZ.sh.WORK) o.done[name] = name === 'razm' ? o.razm : name === 'podm' ? o.podm : repo.staked_total(name);
       return o;
     });
     out.rules = cfg.rules;
@@ -148,8 +152,10 @@ globalThis.RZ = globalThis.RZ || {};
   }
 
   function field_map(db) {
-    const {c, rows, oo, staked_rows, tasks} = db.read(repo => ({c: coords(db, repo), rows: repo.field_rows(), oo: repo.sheet_rows('oo').map(r => r[2]),
-      staked_rows: repo.staked_points(), tasks: repo.sheet_rows('razb').filter(r => r[3] === null).map(r => r[2])}));
+    const custom_ids = RZ.sh.WORK.filter(n => RZ.sh.SHEETS[n].custom);
+    const {c, rows, oo, staked_rows, tasks, custom_rows} = db.read(repo => ({c: coords(db, repo), rows: repo.field_rows(), oo: repo.sheet_rows('oo').map(r => r[2]),
+      staked_rows: repo.staked_points(), tasks: repo.sheet_rows('razb').filter(r => r[3] === null).map(r => r[2]),
+      custom_rows: Object.fromEntries(custom_ids.map(n => [n, repo.staked_points(n)]))}));
     const points = [], dates = new Map(), names = new Map();
     let no_xy = 0;
     for (const [line, picket, date, worker] of rows) {
@@ -173,6 +179,17 @@ globalThis.RZ = globalThis.RZ || {};
       if (!names.has(worker)) names.set(worker, names.size);
       staked.push(xy[0], xy[1], line, picket, dates.get(date), names.get(worker));
     }
+    const custom = {};                                // свои листы работ: выполненные пикеты, у каждого листа свой слой
+    for (const [name, pts] of Object.entries(custom_rows)) {
+      const out = custom[name] = [];
+      for (const [line, picket, date, worker] of pts) {
+        const xy = c.est(line, picket);
+        if (!xy) continue;
+        if (!dates.has(date)) dates.set(date, dates.size);
+        if (!names.has(worker)) names.set(worker, names.size);
+        out.push(xy[0], xy[1], line, picket, dates.get(date), names.get(worker));
+      }
+    }
     const plan = [], seen = new Set();                // задания на разбивку: место считается, если координат ещё нет
     for (const v of tasks) {
       if (v[2] === null || v[3] === null || v[4] === null || Math.abs(v[4] - v[3]) > 20000) continue;
@@ -182,8 +199,8 @@ globalThis.RZ = globalThis.RZ || {};
       }
     }
     return {
-      staked, plan,
-      sps: c.schematic ? [] : c.background, schematic: c.schematic, field: points, dates: [...dates.keys()], names: [...names.keys()],
+      staked, plan, custom,
+      sps: c.schematic ? [] : c.background, sps_s: c.schematic ? [] : c.background_s, sps_x: c.schematic ? {} : c.background_x, schematic: c.schematic, field: points, dates: [...dates.keys()], names: [...names.keys()],
       segments: RZ.rules.segments(rows.map(r => [r[0], r[1], 0])).map(s => s.slice(0, 3)),
       no_xy, left, lost, line_angle: c.schematic ? 0 : c.line_angle,
     };
@@ -250,6 +267,20 @@ globalThis.RZ = globalThis.RZ || {};
   }
 
   const stats = (db, d1, d2) => db.read(repo => repo.stats(d1, d2));
+  /* Статистика одного вида работ (лист работ): {sheet, title, unit, days, workers, lines, total} */
+  function sheet_stats(db, name, d1, d2) {
+    const s = RZ.sh.SHEETS[name];
+    if (!s || !RZ.sh.WORK.includes(name)) throw new RZ.ValidationError('Неизвестный вид работ.');
+    return {sheet: name, title: s.title, unit: s.unit, ...db.read(repo => repo.sheet_stats(name, d1 || '0000-00-00', d2 || '9999-99-99'))};
+  }
+  /* Лидеры за период: по каждому листу работ, по убыванию объёма */
+  function leaders(db, d1, d2) {
+    const got = db.read(repo => repo.leaders(d1 || '0000-00-00', d2 || '9999-99-99'));
+    return {sheets: RZ.sh.WORK.map(n => {
+      const s = RZ.sh.SHEETS[n];
+      return {id: n, title: s.title, unit: s.unit, custom: !!s.custom, journal: s.journal || (s.prefix === 'Журнал ТГО' ? 'tgo' : 'gfo'), rows: got[n] || []};
+    })};
+  }
 
   /* Противоречия истории и сверка итогов. Каналов на поле = размотано - подмотано - повторных размоток + подмоток без размотки */
   function check(db) {
@@ -272,5 +303,5 @@ globalThis.RZ = globalThis.RZ || {};
     return {items: result, razm: totals.razm, podm: totals.podm, field: totals.field, double_razm: razm, orphan_podm: rows.length - razm};
   }
 
-  RZ.reports = {find, Coords, coords, summary, field_map, period, stats, check, round_to, line_angle, picket_xy, nearest};
+  RZ.reports = {find, Coords, coords, summary, field_map, period, stats, sheet_stats, leaders, check, round_to, line_angle, picket_xy, nearest};
 })(globalThis.RZ);

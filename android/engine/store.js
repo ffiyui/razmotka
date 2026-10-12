@@ -56,7 +56,7 @@ globalThis.RZ = globalThis.RZ || {};
   RZ.kv_idb = kv_idb;
 
   // ---------------------------------------------------------------- репозиторий
-  const ROW_SHEETS = ['razm', 'podm', 'razb', 'oo', 'snake', 'info', 'workers', 'topo'];
+  const ROW_SHEETS = RZ.sh.ROWS;            // живой список: свои листы пользователя добавляются в него (sheets-core.js, register_custom)
   /* Постоянный номер строки: по нему проекты объединяются (тот же смысл, что uid в настольной версии) */
   const new_uid = () => { let s = ''; for (let i = 0; i < 32; i++) s += '0123456789abcdef'[Math.floor(Math.random() * 16)]; return s; };
   const now_utc = () => new Date().toISOString().slice(0, 19);
@@ -89,6 +89,7 @@ globalThis.RZ = globalThis.RZ || {};
     _w(name) {
       if (!this.tx) throw new Error('Запись вне транзакции.');
       if (!this.tx.saved.has(name)) {
+        if (this.p[name] === undefined && name.startsWith('rows:')) this.p[name] = [];     // свой лист, в котором ещё нет строк
         const cur = this.p[name];
         this.tx.saved.set(name, cur);
         this.p[name] = cur instanceof Map ? new Map(cur) : Array.isArray(cur) ? cur.slice() : {...cur};
@@ -109,7 +110,7 @@ globalThis.RZ = globalThis.RZ || {};
     static key_text(same_day, run) { return RZ.rules.last_event_key(run.date, run.type, run.seq, same_day); }
 
     // ---- строки листов -------------------------------------------------------------------------
-    _rows(sheet) { return sheet === 'sps' ? this.p.sps : this.p['rows:' + sheet]; }
+    _rows(sheet) { if (sheet !== 'sps' && !this.p['rows:' + sheet] && RZ.sh.SHEETS[sheet]) this.p['rows:' + sheet] = []; return sheet === 'sps' ? this.p.sps : this.p['rows:' + sheet]; }
     _sorted(sheet) {
       const a = this._rows(sheet);
       if (!a) throw new Error('Неизвестный лист: ' + sheet);
@@ -142,7 +143,7 @@ globalThis.RZ = globalThis.RZ || {};
       const last = arr[arr.length - 1];
       if (last && byPosId(last, row) > 0) this.db.sorted.set(sheet, false);
       arr.push(row);
-      if (sheet === 'sps') this.db.drop_sps_index();
+      if (RZ.sh.is_sps(sheet)) this.db.drop_sps_index();
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
       return id;
@@ -154,7 +155,7 @@ globalThis.RZ = globalThis.RZ || {};
       if (i < 0) return;
       arr[i] = {...arr[i], pos, v: values.slice()};
       if (sheet !== 'sps') { arr[i].ts = ts || now_utc(); if (origin !== undefined) arr[i].origin = origin; }
-      if (sheet === 'sps') this.db.drop_sps_index();
+      if (RZ.sh.is_sps(sheet)) this.db.drop_sps_index();
       this.db.sorted.set(sheet, false);
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
@@ -188,7 +189,7 @@ globalThis.RZ = globalThis.RZ || {};
       this.p[name] = this.p[name].filter(r => !gone.has(r.id));
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
-      if (sheet === 'sps') this.db.drop_sps_index();
+      if (RZ.sh.is_sps(sheet)) this.db.drop_sps_index();
     }
     clear_sheet(sheet) {
       const name = sheet === 'sps' ? 'sps' : 'rows:' + sheet;
@@ -196,13 +197,13 @@ globalThis.RZ = globalThis.RZ || {};
       this.p[name] = [];
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
-      if (sheet === 'sps') this.db.drop_sps_index();
+      if (RZ.sh.is_sps(sheet)) this.db.drop_sps_index();
     }
     set_done(ids, batch) {
       const set = new Set(ids);
       for (const sheet of ROW_SHEETS) {
         const arr = this.p['rows:' + sheet];
-        if (!arr.some(r => set.has(r.id))) continue;
+        if (!arr || !arr.some(r => set.has(r.id))) continue;
         const w = this._w('rows:' + sheet);
         for (let i = 0; i < w.length; i++) if (set.has(w[i].id)) w[i] = {...w[i], batch: nul(batch)};
         this.db.index.delete(sheet);
@@ -241,7 +242,7 @@ globalThis.RZ = globalThis.RZ || {};
     }
     batch_row_ids(batch) {
       const out = [];
-      for (const sheet of ROW_SHEETS) for (const r of this.p['rows:' + sheet]) if (r.batch === batch) out.push(r.id);
+      for (const sheet of ROW_SHEETS) for (const r of this.p['rows:' + sheet] || []) if (r.batch === batch) out.push(r.id);
       return out;
     }
     clear_batches() { this._w('batches'); this.p.batches = []; this.tx.dirty.add('batches'); }
@@ -259,41 +260,48 @@ globalThis.RZ = globalThis.RZ || {};
     clear_events() { this._w('events'); this.p.events = new Map(); this.tx.dirty.add('events'); }
 
     // ---- разбивка: интервалами, по одному на строку листа «Разбивка» ---------------------------
-    insert_staked(src, line, p1, p2, date, wid, worker) { this._w('staked').set(src, {src, line, p1, p2, date, wid, worker}); this.tx.dirty.add('staked'); }
+    /* sheet - лист, строка которого провела пикеты: «Разбивка» (razb) или свой лист работ */
+    insert_staked(src, line, p1, p2, date, wid, worker, sheet = 'razb') { this._w('staked').set(src, sheet === 'razb' ? {src, line, p1, p2, date, wid, worker} : {src, line, p1, p2, date, wid, worker, sheet}); this.tx.dirty.add('staked'); }
     delete_staked(src_ids) { const st = this._w('staked'); for (const s of src_ids) st.delete(s); this.tx.dirty.add('staked'); }
     clear_staked() { this._w('staked'); this.p.staked = new Map(); this.tx.dirty.add('staked'); }
     /* Map ключ пикета -> [линия, пикет, дата последней разбивки, топограф] */
-    _staked() {
+    _staked(sheet = 'razb') {
       const m = new Map();
-      for (const r of this.p.staked.values()) for (let p = r.p1; p <= r.p2; p++) {
+      for (const r of this.p.staked.values()) if ((r.sheet || 'razb') === sheet) for (let p = r.p1; p <= r.p2; p++) {
         const k = r.line * K + p, was = m.get(k);
         if (!was || was[2] < r.date) m.set(k, [r.line, p, r.date, r.worker]);
       }
       return m;
     }
-    staked_known(line, p1, p2) { const m = this._staked(); let n = 0; for (let p = p1; p <= p2; p++) if (m.has(line * K + p)) n++; return n; }
-    staked_points() { return [...this._staked().values()].sort((a, b) => a[0] - b[0] || a[1] - b[1]); }
-    staked_total() { return this._staked().size; }
-    staked_stats(d1, d2) {
+    staked_known(line, p1, p2, sheet = 'razb') { const m = this._staked(sheet); let n = 0; for (let p = p1; p <= p2; p++) if (m.has(line * K + p)) n++; return n; }
+    staked_points(sheet = 'razb') { return [...this._staked(sheet).values()].sort((a, b) => a[0] - b[0] || a[1] - b[1]); }
+    staked_total(sheet = 'razb') { return this._staked(sheet).size; }
+    staked_stats(d1, d2, sheet = 'razb') {
       const m = new Map();
-      for (const r of this.p.staked.values()) if (r.date >= d1 && r.date <= d2) m.set(r.worker, (m.get(r.worker) || 0) + r.p2 - r.p1 + 1);
+      for (const r of this.p.staked.values()) if ((r.sheet || 'razb') === sheet && r.date >= d1 && r.date <= d2) m.set(r.worker, (m.get(r.worker) || 0) + r.p2 - r.p1 + 1);
       return [...m].sort((a, b) => b[1] - a[1]);
     }
 
     // ---- координаты пикетов (лист SPS) -----------------------------------------------------------
-    sps_count() { let n = 0; for (const r of this.p.sps) if (r.v[0] !== null && r.v[1] !== null) n++; return n; }
-    /* Сколько пикетов интервала есть в SPS */
+    /* Проектная сетка - листы SPS R и SPS S вместе */
+    _sps_pages() { return ROW_SHEETS.filter(n => RZ.sh.is_sps(n)); }                   // spss и добавленные страницы SPS
+    _sps_all() { return this._sps_pages().reduce((a, n) => a.concat(this._rows(n) || []), this.p.sps); }
+    sps_count() { let n = 0; for (const r of this._sps_all()) if (r.v[0] !== null && r.v[1] !== null) n++; return n; }
+    /* Сколько пикетов интервала есть в SPS (R и S) */
     sps_known(line, p1, p2) {
-      const idx = this.db.sps_index(this.p.sps), m = idx.get(line);
+      const idx = this.db.sps_index(this._sps_all()), m = idx.get(line);
       if (!m) return 0;
       let n = 0;
       for (let p = p1; p <= p2; p++) if (m.has(p)) n++;
       return n;
     }
-    /* [линия, пикет, x, y] всех пикетов с координатами, в порядке листа */
+    /* [линия, пикет, x, y, s] всех пикетов с координатами, в порядке листов: SPS R (s = 0), SPS S (s = 1), добавленные страницы (s - номер листа) */
     sps_points() {
       const out = [];
-      for (const r of this._sorted('sps')) { const v = r.v; if (v[0] !== null && v[1] !== null && v[2] !== null && v[3] !== null) out.push([v[0], v[1], v[2], v[3]]); }
+      for (const [name, s] of [['sps', 0], ...this._sps_pages().map(n => [n, n === 'spss' ? 1 : n])]) {
+        if (s && !this._rows(name)) continue;
+        for (const r of this._sorted(name)) { const v = r.v; if (v[0] !== null && v[1] !== null && v[2] !== null && v[3] !== null) out.push([v[0], v[1], v[2], v[3], s]); }
+      }
       return out;
     }
     /* rows: [[линия, пикет, x, y, z]] */
@@ -448,6 +456,34 @@ globalThis.RZ = globalThis.RZ || {};
         lines: rows(lines).sort((x, y) => x[0] - y[0]),
       };
     }
+    /* Статистика одного вида работ за период: по дням, исполнителям и линиям.
+       Размотка и подмотка - каналы проведённых событий, разбивка и свои листы - проведённые пикеты */
+    sheet_stats(sheet, d1, d2) {
+      const days = new Map(), workers = new Map(), lines = new Map();
+      const add = (r, n) => { for (const [m, k] of [[days, r.date], [workers, r.worker], [lines, r.line]]) m.set(k, (m.get(k) || 0) + n); };
+      if (sheet === 'razm' || sheet === 'podm') {
+        const t = sheet === 'razm' ? 1 : 0;
+        for (const r of this.p.events.values()) if (r.type === t && r.date >= d1 && r.date <= d2) add(r, r.p2 - r.p1 + 1);
+      } else for (const r of this.p.staked.values()) if ((r.sheet || 'razb') === sheet && r.date >= d1 && r.date <= d2) add(r, r.p2 - r.p1 + 1);
+      const bin = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
+      return {
+        days: [...days].sort((x, y) => bin(x[0], y[0])),
+        workers: [...workers].filter(([w]) => w).sort((x, y) => y[1] - x[1] || bin(x[0], y[0])),
+        lines: [...lines].sort((x, y) => x[0] - y[0]),
+        total: [...days.values()].reduce((a, b) => a + b, 0),
+      };
+    }
+    /* Лидеры за период по каждому листу работ: {лист: [[исполнитель, объём], ...]} по убыванию объёма.
+       Размотка и подмотка - по проведённым каналам, разбивка и свои листы - по проведённым пикетам */
+    leaders(d1, d2) {
+      const m = {};
+      const add = (sheet, who, n) => { const w = m[sheet] || (m[sheet] = new Map()); w.set(who, (w.get(who) || 0) + n); };
+      for (const r of this.p.events.values()) if (r.date >= d1 && r.date <= d2) add(r.type === 1 ? 'razm' : 'podm', r.worker, r.p2 - r.p1 + 1);
+      for (const r of this.p.staked.values()) if (r.date >= d1 && r.date <= d2) add(r.sheet || 'razb', r.worker, r.p2 - r.p1 + 1);
+      const out = {};
+      for (const [k, w] of Object.entries(m)) out[k] = [...w].filter(([who]) => who).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+      return out;
+    }
     /* [заголовок, строки] истории по пикетам: по типу, дате, старшему, линии, пикету */
     export_history() {
       const head = ['Дата', 'Линия', 'Пикет', 'ID старшего', 'ФИО старшего', 'Тип работ'];
@@ -489,6 +525,8 @@ globalThis.RZ = globalThis.RZ || {};
         else db.extra.set(k, v);
       }
       db.sorted.set('sps', true);
+      RZ.sh.register_custom(db.extra.get('custom'));                // свои листы пользователя
+      for (const s of ROW_SHEETS) if (!db.parts['rows:' + s]) db.parts['rows:' + s] = [];
       if (db.parts.events.size) { db.write(repo => repo.rebuild_state(same_day), false); db.dirty.delete('events'); }
       return db;
     }
@@ -576,7 +614,7 @@ globalThis.RZ = globalThis.RZ || {};
     /* Полная выгрузка данных для резервной копии */
     snapshot() {
       const P = this.parts, out = {format: 'razmotka-backup', version: 1, meta: P.meta, batches: P.batches, sps: [], events: [...P.events.values()], rows: {}, extra: {}};
-      for (const s of ROW_SHEETS) out.rows[s] = P['rows:' + s].map(r => [r.id, r.pos, r.v, r.batch, r.fmt, r.uid, r.ts, r.origin]);
+      for (const s of ROW_SHEETS) out.rows[s] = (P['rows:' + s] || []).map(r => [r.id, r.pos, r.v, r.batch, r.fmt, r.uid, r.ts, r.origin]);
       out.staked = [...P.staked.values()]; out.gone = P.gone;
       out.sps = P.sps.map(r => [r.id, r.pos, ...r.v]);
       for (const [k, v] of this.extra) if (!k.startsWith('blob:')) out.extra[k] = v;
@@ -585,6 +623,7 @@ globalThis.RZ = globalThis.RZ || {};
     /* Заменяет все данные содержимым копии */
     restore(snap, same_day) {
       if (!snap || snap.format !== 'razmotka-backup') throw new RZ.ValidationError('Это не файл копии данных программы.');
+      RZ.sh.register_custom(snap.extra && snap.extra.custom);             // свои листы копии - до её строк
       this.write(repo => {
         const P = this.parts;
         for (const s of ROW_SHEETS) { repo._w('rows:' + s); P['rows:' + s] = (snap.rows[s] || []).map(([id, pos, v, batch, fmt, uid, ts, origin]) =>

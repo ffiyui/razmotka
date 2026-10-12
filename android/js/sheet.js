@@ -10,10 +10,12 @@ function setWorkers(pairs, list = 'workers') {
     const key = String(name).trim().toLowerCase();
     if (!lookup.has(key)) lookup.set(key, id === null ? 0 : id);
   }
-  $('gx-' + list).innerHTML = pairs.filter(p => p[1]).map(p => `<option value="${esc(p[1])}">`).join('');
+  let dl = $('gx-' + list);
+  if (!dl) { dl = document.createElement('datalist'); dl.id = 'gx-' + list; document.body.appendChild(dl); }   // свой лист ID
+  dl.innerHTML = pairs.filter(p => p[1]).map(p => `<option value="${esc(p[1])}">`).join('');
 }
 async function loadWorkers() {
-  for (const list of ['workers', 'topo']) {
+  for (const list of ['workers', 'topo', ...Object.values(Sheets.pages).filter(p => p.meta.custom && p.meta.kind === 'workers').map(p => p.name)]) {
     const j = await api('/api/sheet?name=' + list);
     setWorkers(j.rows.map(r => [r[3][0], r[3][1]]), list);
   }
@@ -37,10 +39,15 @@ class SheetPage {
     this.loaded = false;
     this.action = null;
     this.sel = {cells: 1, nums: 0, sum: 0, done: 0, real: 0};
-    this.done = this.work ? DONE_WORD[meta.id] : '';
+    this.done = this.work ? DONE_WORD[meta.id] || 'выполнено' : '';
     this.units = meta.unit === 'пикет' ? picketWord : chanWord;        // в чём считается работа листа
-    const el = this.el = $('p-' + meta.id);
-    el.classList.add(this.work ? 'acc-' + meta.id : 'acc-plain');
+    let el = $('p-' + meta.id);
+    if (!el) {                                                  // свой лист пользователя: страница создаётся здесь
+      el = document.createElement('section'); el.className = 'page sheet'; el.id = 'p-' + meta.id;
+      document.querySelector('main').appendChild(el);
+    }
+    this.el = el;
+    el.classList.add(this.work ? (meta.custom ? 'acc-custom' : 'acc-' + meta.id) : 'acc-plain');
     el.innerHTML =
       `<div class="sh-top"><h1><span class="sh-h"></span>${!meta.heading ? '' : this.work
           ? ` <button type="button" class="sh-word" title="Цвет листа: щелчок — выбрать">${esc(meta.title)}</button>`
@@ -93,6 +100,7 @@ class SheetPage {
       onFind: () => { const t = el.querySelector('.f-text'); t.focus(); t.select(); },
       onMode: on => { const b = el.querySelector('.tb[data-t=select]'); if (b) b.classList.toggle('on', on); },
       pasteBox: () => this.pasteBox(),
+      onHeader: c => this.wheelFilter(c),
       mark: meta.kind !== 'workers' ? null : {             // галочка у фамилии: кто работает на этом телефоне (js/work.js)
         can: row => row.v[1] !== null && String(row.v[1]).trim() !== '',
         on: row => typeof meName === 'function' && !!meName() && String(row.v[1]).trim().toLowerCase() === meName().toLowerCase(),
@@ -177,16 +185,38 @@ class SheetPage {
     el.querySelector('input').addEventListener('input', e => pick(e.target.value, true));
     el.querySelector('input').addEventListener('change', () => { close(); this.grid.focus(); });
   }
-  /* Фильтр: показываются строки, где текст найден в выбранном столбце (или в любом) и подходит состояние */
+  /* Барабан по заголовку столбца: значения столбца, выбранное - фильтр «равно» (вместе с поиском и состоянием) */
+  async wheelFilter(c) {
+    const g = this.grid, col = g.cols[c], seen = new Map();
+    for (const row of g.rows) {
+      if (g.isBlank(row)) continue;
+      const t = g.text(row, c);
+      if (!seen.has(t)) seen.set(t, row.v[c]);
+    }
+    const num = ['int', 'num', 'calc'].includes(col.kind);
+    const items = [...seen].sort((a, b) => (a[0] === '' ? 1 : b[0] === '' ? -1 : num ? (+a[1] || 0) - (+b[1] || 0) : col.kind === 'date' ? String(a[1]).localeCompare(String(b[1])) : a[0].localeCompare(b[0], 'ru')))
+      .map(([t]) => ({v: t, label: t === '' ? '(пусто)' : t}));
+    const cur = this.wheel && this.wheel[c];
+    const v = await openWheel({title: col.title, items, value: cur === undefined ? (items[0] && items[0].v) : cur});
+    if (v === undefined) return;
+    this.wheel = this.wheel || {};
+    if (v === null) delete this.wheel[c]; else this.wheel[c] = v;
+    this.applyFilter();
+  }
+  /* Фильтр: показываются строки, где текст найден в выбранном столбце (или в любом), подходит состояние
+     и значения столбцов, выбранные барабаном */
   applyFilter() {
     const q = s => this.el.querySelector(s), g = this.grid;
     const text = q('.f-text').value.trim().toLowerCase(), col = q('.f-col').value, state = q('.f-state') ? q('.f-state').value : '';
     const cols = col === '' ? g.cols.map((c, i) => i) : [+col];
-    const active = !!(text || state);
+    const wheel = Object.entries(this.wheel || {}).map(([c, v]) => [+c, v]);
+    const active = !!(text || state || wheel.length);
+    g.flt = new Set(wheel.map(w => w[0])); g.layout();
     g.setFilter(!active ? null : row => {
       if (state === 'done' && !row.done) return false;
       if (state === 'got' && (row.done || !row.from)) return false;
       if (state === 'draft' && (row.done || g.isBlank(row))) return false;
+      for (const [c, v] of wheel) if (g.isBlank(row) || g.text(row, c) !== v) return false;
       return !text || cols.some(c => g.text(row, c).toLowerCase().includes(text));
     });
     this.filtered = active;
@@ -198,16 +228,20 @@ class SheetPage {
   clearFilter() {
     const q = s => this.el.querySelector(s);
     if (!this.filtered && !q('.f-text').value) return;
-    q('.f-text').value = ''; q('.f-col').value = '';
+    q('.f-text').value = ''; q('.f-col').value = ''; this.wheel = {};
     if (q('.f-state')) q('.f-state').value = '';
     this.applyFilter();
   }
 
   title() {
-    return this.meta.heading ? this.meta.prefix : this.meta.title;   // «Журнал ГФО» или «Журнал ТГО»; номер партии стоит в шапке меню
+    const g = typeof navGroupOf === 'function' ? navGroupOf(this.name) : null;      // название журнала, в котором лист (js/journals.js)
+    return this.meta.heading ? (g ? g.title : this.meta.prefix) : (typeof navTitle === 'function' ? navTitle(this.name) || this.meta.title : this.meta.title);
   }
   async show() {
     this.el.querySelector('.sh-h').textContent = this.title();
+    const word = this.el.querySelector('.sh-word');
+    if (word && typeof navTitle === 'function') word.textContent = navTitle(this.name) || this.meta.title;
+    if (typeof jtabsRender === 'function') jtabsRender(this);
     if (!this.loaded || dirty[this.name]) { dirty[this.name] = false; await this.load(this.loaded); }
     else this.grid.render();
     this.stale = false;
@@ -258,7 +292,9 @@ class SheetPage {
     q('.sh-state').innerHTML = d.rows
       ? `Ждут кнопки «${esc(this.meta.button)}»: <b>${rowsWord(d.rows)}</b>, ${this.units(d.channels)}` + (d.got ? ` · из файлов: ${nf(d.got)}` : '')
       : (this.grid.rows.length ? 'Все строки проведены' : 'Таблица пуста. Вводите строки или загрузите журнал из Excel в разделе «Данные»');
-    $('nav-' + this.name).textContent = d.rows ? nf(d.rows) : '';
+    if ($('nav-' + this.name)) $('nav-' + this.name).textContent = d.rows ? nf(d.rows) : '';
+    if (S && S.done && S.done[this.name] !== undefined)                 // сколько уже выполнено по листу - чипсом
+      q('.sh-state').insertAdjacentHTML('afterbegin', `<span class="chip g sh-done">${cap(this.done)}: ${this.units(S.done[this.name])}</span> `);
   }
   setSave(state) {
     this.el.querySelector('.sh-save').textContent = state === 'pending' ? 'Сохраняю…' : state === 'saved' ? 'Сохранено' : '';
@@ -271,7 +307,7 @@ class SheetPage {
       this.dirtyRows.delete(r); this.removedRows.add(r);
       if (r.wasDone) { r.wasDone = false; this.recount = true; }     // учёт на поле изменился
     }
-    if (this.name === 'sps' || this.name === 'oo' || this.name === 'info') dirty.field = true;   // от них зависит карта
+    if (this.name === 'sps' || this.name === 'spss' || this.name === 'oo' || this.name === 'info') dirty.field = true;   // от них зависит карта
     this.setSave('pending');
     this.updateBar();
     if (this.meta.kind === 'workers') {                       // список исполнителей изменился: ID в листах работ пересчитываются
@@ -310,7 +346,7 @@ class SheetPage {
         }
         this.setSave('saved');
         if (this.name === 'info') { await loadSummary(); this.el.querySelector('.sh-h').textContent = this.title(); }
-        if (this.name === 'sps') loadSummary();
+        if (this.name === 'sps' || this.name === 'spss') loadSummary();
         if (this.recount) { this.recount = false; await this.syncAction(); }
         return true;
       } catch (j) {
@@ -454,5 +490,16 @@ class SheetPage {
 async function initSheets() {
   Sheets.meta = await api('/api/sheets');
   for (const m of Sheets.meta.sheets) Sheets.pages[m.id] = new SheetPage(m);
+  await loadWorkers();
+  if (typeof journalsSync === 'function') journalsSync();            // свои листы - в свои журналы меню (js/journals.js)
+}
+/* Свой лист добавлен или переименован: описание листов перечитывается, новая страница создаётся */
+async function refreshSheets() {
+  Sheets.meta = await api('/api/sheets');
+  for (const m of Sheets.meta.sheets) {
+    if (!Sheets.pages[m.id]) Sheets.pages[m.id] = new SheetPage(m);
+    else Sheets.pages[m.id].meta.title = m.title;
+  }
+  for (const id of Object.keys(Sheets.pages)) if (!Sheets.meta.sheets.some(m => m.id === id)) { Sheets.pages[id].el.remove(); delete Sheets.pages[id]; }
   await loadWorkers();
 }

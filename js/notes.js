@@ -38,15 +38,15 @@
     let photo = null, changed = false;                 // photo: data:-адрес, null - нет; changed - фото заменено или удалено
     if (n.photo) { try { photo = (await api('/api/note/photo?key=' + encodeURIComponent(key))).data || null; } catch (e) { photo = null; } }
     const body = () => `<div class="nt-ph">${photo ? `<img id="ntImg" src="${photo}" alt="Фото">` : '<div class="nt-none">Фото нет</div>'}</div>` +
-      `<div class="ni-row"><label class="btn" for="ntFile">${cam} ${photo ? 'Заменить фото' : 'Сделать или выбрать фото'}</label>` +
-      `<input type="file" id="ntFile" accept="image/*" hidden>` +
+      `<div class="ni-row"><label class="btn" for="ntCam">${cam} ${photo ? 'Новое фото' : 'Сделать фото'}</label><label class="btn" for="ntFile">Из галереи</label>` +
+      `<input type="file" id="ntCam" accept="image/*" capture="environment" hidden><input type="file" id="ntFile" accept="image/*" hidden>` +
       (photo ? '<button type="button" class="btn" id="ntDraw">Рисовать на фото</button><button type="button" class="btn danger" id="ntDel">Удалить фото</button>' : '') + '</div>' +
       `<label for="ntText">Описание</label><textarea id="ntText" rows="4" style="width:100%" maxlength="4000" placeholder="Что здесь: состояние, что сделать…">${esc(n.text || '')}</textarea>` +
       (N.all[key] ? '<div class="ni-row"><button type="button" class="btn danger" id="ntRemove">Удалить фото и описание</button></div>' : '');
     let removeAll = false;
     const p = ask(title, body(), 'Сохранить', false, true);
     const bind = () => {
-      $('ntFile').onchange = async e => {
+      $('ntCam').onchange = $('ntFile').onchange = async e => {
         const f = e.target.files && e.target.files[0]; if (!f) return;
         const text = $('ntText').value;
         try { photo = await shrink(f); changed = true; } catch (err) { toast('Фото не открылось.'); return; }

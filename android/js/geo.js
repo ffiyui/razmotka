@@ -152,29 +152,27 @@
     if (out) {                                               // за краем окна: стрелка у края в сторону «я»
       const m = 22, x = Math.max(m, Math.min(w - m, sx)), y = Math.max(m, Math.min(h - m, sy)), a = Math.atan2(sy - h / 2, sx - w / 2);
       ctx.translate(x, y); ctx.rotate(a);
-      ctx.fillStyle = '#0A84FF'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5;
+      ctx.fillStyle = '#58A6FF'; ctx.strokeStyle = '#0D1117'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-7, -9); ctx.lineTo(-3, 0); ctx.lineTo(-7, 9); ctx.closePath(); ctx.stroke(); ctx.fill();
       ctx.restore(); return;
     }
     const R = Math.max(0, f.acc * V.s);
     if (R > 6) {                                             // круг точности
       ctx.beginPath(); ctx.arc(sx, sy, R, 0, 6.2832);
-      ctx.fillStyle = 'rgba(10,132,255,.13)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(10,132,255,.38)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = 'rgba(88,166,255,.13)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(88,166,255,.38)'; ctx.lineWidth = 1; ctx.stroke();
     }
     const gh = gridHeading();
     if (gh !== null) {                                       // направление движения: луч-«фонарик»
       const dx = Math.sin(gh * Math.PI / 180), dy = Math.cos(gh * Math.PI / 180);
       const ux = dx * V.c - dy * V.n, uy = -(dx * V.n + dy * V.c), a = Math.atan2(uy, ux);
       const g = ctx.createRadialGradient(sx, sy, 6, sx, sy, 46);
-      g.addColorStop(0, 'rgba(10,132,255,.55)'); g.addColorStop(1, 'rgba(10,132,255,0)');
+      g.addColorStop(0, 'rgba(88,166,255,.55)'); g.addColorStop(1, 'rgba(88,166,255,0)');
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.arc(sx, sy, 46, a - .5, a + .5); ctx.closePath();
       ctx.fillStyle = g; ctx.fill();
     }
-    ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1.5;
-    ctx.beginPath(); ctx.arc(sx, sy, 9, 0, 6.2832); ctx.fillStyle = '#fff'; ctx.fill();
-    ctx.shadowColor = 'transparent';
-    ctx.beginPath(); ctx.arc(sx, sy, 6.4, 0, 6.2832); ctx.fillStyle = '#0A84FF'; ctx.fill();
+    ctx.beginPath(); ctx.arc(sx, sy, 9, 0, 6.2832); ctx.fillStyle = '#F0F6FC'; ctx.fill();      // без размытой тени
+    ctx.beginPath(); ctx.arc(sx, sy, 6.4, 0, 6.2832); ctx.fillStyle = '#58A6FF'; ctx.fill();
     ctx.restore();
   };
 

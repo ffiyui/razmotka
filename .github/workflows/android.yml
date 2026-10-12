@@ -33,9 +33,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete android-latest -y --cleanup-tag || true
-          gh release create android-latest native/out/razmotka-sp10.apk \
-            --title "Размотка СП10 для Android (сборка ${{ github.run_number }})" \
-            --notes "Установка: скачайте razmotka-sp10.apk на телефон и откройте его. Разрешите установку из этого источника, если телефон спросит." \
+          gh release create android-latest native/out/GeoLink.apk \
+            --title "GeoLink для Android (сборка ${{ github.run_number }})" \
+            --notes "Установка: скачайте GeoLink.apk на телефон и откройте его. Разрешите установку из этого источника, если телефон спросит. Обновление ставится поверх прежней версии, данные сохраняются." \
             --target "${{ github.sha }}" --latest
       - name: Журнал сборки
         if: always()
