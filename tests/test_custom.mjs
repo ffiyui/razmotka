@@ -105,6 +105,18 @@ ok('встроенные листы на месте', ['razm', 'podm', 'razb', '
   const U = await phone();
   const r = await U.take([file], 'replace');
   ok('файл проекта переносит SPS S', !r.error && (await U.call('GET', '/api/field')).sps_s.length === 12, r);
+  // добавленная страница SPS
+  const xid = (await T.call('POST', '/api/custom', {add: {kind: 'sps', title: 'SPS доп', journal: 'sps'}})).id;
+  await T.save(xid, [[8001, 1, 458000, 5705000, 100], [8001, 2, 458025, 5705000, 100]]);
+  const fx = await T.call('GET', '/api/field');
+  eq('добавленная страница SPS - свой слой', fx.sps_x[xid], [458000, 5705000, 458025, 5705000]);
+  ok('пикет добавленной страницы находится', JSON.stringify(await T.call('GET', '/api/picket', {line: 8001, picket: 2})).includes('458025'));
+  const file2 = await T.call('GET', '/api/project/export', {});
+  const U2 = await phone();
+  const r2 = await U2.take([file2], 'replace');
+  ok('файл проекта переносит добавленную страницу SPS', !r2.error && ((await U2.call('GET', '/api/field')).sps_x[xid] || []).length === 4, r2);
+  await T.call('POST', '/api/custom', {remove: xid});
+  ok('страница SPS удалена - её пикетов нет', !(await T.call('GET', '/api/picket', {line: 8001, picket: 2})).x);
   // фото и описания
   const ph = 'data:image/jpeg;base64,' + 'A'.repeat(4000);
   await T.call('POST', '/api/note', {key: 'p:7001:203', text: 'Колышек сбит', photo: ph});

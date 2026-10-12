@@ -465,3 +465,6 @@ html.locked body { overflow: hidden; }
   .maptools { gap: 6px; right: 10px; }
   .maptools .icon-btn { width: 42px; height: 42px; }
 }
+
+img.gl-logo { object-fit: contain; }
+.pass-logo { border-radius: 16px; }

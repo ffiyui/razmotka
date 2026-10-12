@@ -9,7 +9,7 @@ const NARROW_Q = '(max-width:820px), (pointer:coarse) and (max-height:500px)';  
 const isNarrow = () => window.matchMedia(NARROW_Q).matches;
 const isTouch = () => window.matchMedia('(pointer:coarse)').matches;
 const NAV_PAGES = {home: 'Главная', settings: 'Настройки', razm: 'Размотка', podm: 'Подмотка', razb: 'Разбивка', topo: 'ID топографов', tracks: 'Треки', oo: 'Оставленное оборудование', snake: 'Змейки и вылеты',
-  info: 'Общая информация', workers: 'ID старших', field: 'Поле', stats: 'Учёт', check: 'Проверка', sps: 'SPS R', spss: 'SPS S', data: 'Данные'};
+  info: 'Общая информация', workers: 'ID старших', field: 'Поле', stats: 'Учёт', check: 'Проверка', sps: 'SPS', spss: 'SPS S', data: 'Данные'};
 const NAV_BADGE = {razm: 'nav-razm', podm: 'nav-podm', razb: 'nav-razb', check: 'navbad'};
 const NAV_OLD_SUB = 'Журнал учёта работы ГФО';          // подпись прежних версий: заменяется новой
 /* Журналы - разделы меню: у каждого своё название, значок и листы. Отчёты - отдельный раздел (report).
@@ -17,9 +17,9 @@ const NAV_OLD_SUB = 'Журнал учёта работы ГФО';          // �
 const navDefault = () => ({v: 2, brand: 'GeoLink', sp: 'СП10', sub: '', icons: {}, titles: {}, groups: [
   {id: 'gfo', title: 'Журнал ГФО', icon: 'reel', items: ['razm', 'podm', 'oo', 'snake', 'info', 'workers']},
   {id: 'tgo', title: 'Журнал ТГО', icon: 'flagpole', items: ['razb', 'topo']},
-  {id: 'rep', title: 'Отчёты', icon: 'table', report: true, items: ['tracks', 'stats', 'check', 'sps', 'spss']}]});
+  {id: 'rep', title: 'Отчёты', icon: 'table', report: true, items: ['tracks', 'stats', 'check', 'sps']}]});
 /* «Карта», «Данные» и «Настройки» - в нижней панели, в меню их нет */
-const NAV_HIDDEN = new Set(['field', 'data', 'settings', 'home']);
+const NAV_HIDDEN = new Set(['field', 'data', 'settings', 'home', 'spss']);   // SPS S и другие страницы SPS - вкладками на странице «SPS»
 const isCustomId = id => typeof id === 'string' && /^c[a-z0-9]{2,24}$/.test(id) && !Object.prototype.hasOwnProperty.call(NAV_PAGES, id);   // не «check» и не другие встроенные
 let NAV = navDefault(), navDrag = null;
 
@@ -115,6 +115,7 @@ function navFitBrand() {
 }
 /* Подсветка текущей страницы; папка с ней раскрывается */
 function navMark(p) {
+  if (typeof Sheets !== 'undefined' && Sheets.pages[p] && Sheets.pages[p].meta.kind === 'sps') p = 'sps';     // все страницы SPS - пункт «SPS»
   document.querySelectorAll('#navlist a').forEach(a => a.classList.toggle('on', a.dataset.p === p));
   const f = navFind(p);
   if (f && f.folder && !f.folder.open) { f.folder.open = true; navRender(); }

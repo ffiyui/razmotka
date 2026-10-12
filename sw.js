@@ -2,11 +2,12 @@
    Версию и список файлов между маркерами пишет tools/build_sw.py (запускать перед выдачей), руками их не править.
    Новая версия ставится, но не включается сама: страница показывает «Доступна новая версия — Обновить»
    и по кнопке присылает сюда сообщение SKIP_WAITING. Старые кэши удаляются при включении новой версии. */
-const VERSION = /*VERSION*/'be201de2f6bd'/*END*/;
+const VERSION = /*VERSION*/'b9b8f29c7d9e'/*END*/;
 const FILES = /*FILES*/[
   "./",
   "index.html",
   "manifest.webmanifest",
+  "icons/logo-mark.png",
   "icons/apple-touch-icon.png",
   "icons/icon-192.png",
   "js/compat.js",

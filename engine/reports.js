@@ -31,6 +31,7 @@ globalThis.RZ = globalThis.RZ || {};
       this.grid = null;
       this.background = [];                                     // проектные пикеты SPS R (x, y подряд)
       this.background_s = [];                                   // проектные пункты SPS S
+      this.background_x = {};                                   // добавленные страницы SPS: {лист: [x, y, ...]}
       const ends = new Map();                                   // линия -> [мин. пикет, его xy, макс. пикет, его xy]
       for (const [line, picket, x, y, s] of repo.sps_points()) {
         const key = line * 1e6 + picket;
@@ -42,7 +43,7 @@ globalThis.RZ = globalThis.RZ || {};
           if (picket < e[0]) { e[0] = picket; e[1] = [x, y]; }
           if (picket > e[2]) { e[2] = picket; e[3] = [x, y]; }
         }
-        (s ? this.background_s : this.background).push(round_to(x, 1), round_to(y, 1));
+        (s === 0 ? this.background : s === 1 ? this.background_s : (this.background_x[s] = this.background_x[s] || [])).push(round_to(x, 1), round_to(y, 1));
       }
       this.line_angle = line_angle(ends.values());
       this.schematic = this.points.size === 0;
@@ -199,7 +200,7 @@ globalThis.RZ = globalThis.RZ || {};
     }
     return {
       staked, plan, custom,
-      sps: c.schematic ? [] : c.background, sps_s: c.schematic ? [] : c.background_s, schematic: c.schematic, field: points, dates: [...dates.keys()], names: [...names.keys()],
+      sps: c.schematic ? [] : c.background, sps_s: c.schematic ? [] : c.background_s, sps_x: c.schematic ? {} : c.background_x, schematic: c.schematic, field: points, dates: [...dates.keys()], names: [...names.keys()],
       segments: RZ.rules.segments(rows.map(r => [r[0], r[1], 0])).map(s => s.slice(0, 3)),
       no_xy, left, lost, line_angle: c.schematic ? 0 : c.line_angle,
     };

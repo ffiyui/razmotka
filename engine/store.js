@@ -143,7 +143,7 @@ globalThis.RZ = globalThis.RZ || {};
       const last = arr[arr.length - 1];
       if (last && byPosId(last, row) > 0) this.db.sorted.set(sheet, false);
       arr.push(row);
-      if (sheet === 'sps' || sheet === 'spss') this.db.drop_sps_index();
+      if (RZ.sh.is_sps(sheet)) this.db.drop_sps_index();
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
       return id;
@@ -155,7 +155,7 @@ globalThis.RZ = globalThis.RZ || {};
       if (i < 0) return;
       arr[i] = {...arr[i], pos, v: values.slice()};
       if (sheet !== 'sps') { arr[i].ts = ts || now_utc(); if (origin !== undefined) arr[i].origin = origin; }
-      if (sheet === 'sps' || sheet === 'spss') this.db.drop_sps_index();
+      if (RZ.sh.is_sps(sheet)) this.db.drop_sps_index();
       this.db.sorted.set(sheet, false);
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
@@ -189,7 +189,7 @@ globalThis.RZ = globalThis.RZ || {};
       this.p[name] = this.p[name].filter(r => !gone.has(r.id));
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
-      if (sheet === 'sps' || sheet === 'spss') this.db.drop_sps_index();
+      if (RZ.sh.is_sps(sheet)) this.db.drop_sps_index();
     }
     clear_sheet(sheet) {
       const name = sheet === 'sps' ? 'sps' : 'rows:' + sheet;
@@ -197,7 +197,7 @@ globalThis.RZ = globalThis.RZ || {};
       this.p[name] = [];
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
-      if (sheet === 'sps' || sheet === 'spss') this.db.drop_sps_index();
+      if (RZ.sh.is_sps(sheet)) this.db.drop_sps_index();
     }
     set_done(ids, batch) {
       const set = new Set(ids);
@@ -284,7 +284,8 @@ globalThis.RZ = globalThis.RZ || {};
 
     // ---- координаты пикетов (лист SPS) -----------------------------------------------------------
     /* Проектная сетка - листы SPS R и SPS S вместе */
-    _sps_all() { return this.p.sps.concat(this._rows('spss') || []); }
+    _sps_pages() { return ROW_SHEETS.filter(n => RZ.sh.is_sps(n)); }                   // spss и добавленные страницы SPS
+    _sps_all() { return this._sps_pages().reduce((a, n) => a.concat(this._rows(n) || []), this.p.sps); }
     sps_count() { let n = 0; for (const r of this._sps_all()) if (r.v[0] !== null && r.v[1] !== null) n++; return n; }
     /* Сколько пикетов интервала есть в SPS (R и S) */
     sps_known(line, p1, p2) {
@@ -294,11 +295,11 @@ globalThis.RZ = globalThis.RZ || {};
       for (let p = p1; p <= p2; p++) if (m.has(p)) n++;
       return n;
     }
-    /* [линия, пикет, x, y, s] всех пикетов с координатами, в порядке листов: сначала SPS R, затем SPS S (s = 1) */
+    /* [линия, пикет, x, y, s] всех пикетов с координатами, в порядке листов: SPS R (s = 0), SPS S (s = 1), добавленные страницы (s - номер листа) */
     sps_points() {
       const out = [];
-      for (const [name, s] of [['sps', 0], ['spss', 1]]) {
-        if (s && !this._rows('spss')) continue;
+      for (const [name, s] of [['sps', 0], ...this._sps_pages().map(n => [n, n === 'spss' ? 1 : n])]) {
+        if (s && !this._rows(name)) continue;
         for (const r of this._sorted(name)) { const v = r.v; if (v[0] !== null && v[1] !== null && v[2] !== null && v[3] !== null) out.push([v[0], v[1], v[2], v[3], s]); }
       }
       return out;

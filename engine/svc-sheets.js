@@ -121,7 +121,7 @@ globalThis.RZ = globalThis.RZ || {};
       }
       return out;
     });
-    if (name === 'sps' || name === 'spss' || name === 'info') db.coords = null;      // координаты изменились: карта возьмёт их заново
+    if (sh.is_sps(name) || name === 'info') db.coords = null;      // координаты изменились: карта возьмёт их заново
     return {ids};
   }
 
@@ -136,7 +136,7 @@ globalThis.RZ = globalThis.RZ || {};
       if (done.length) { repo.delete_events(done); repo.delete_staked(done); repo.rebuild_state(cfg.rules.same_day); }
       return done;
     });
-    if (name === 'sps' || name === 'spss') db.coords = null;
+    if (sh.is_sps(name)) db.coords = null;
     return {ok: true, recalculated: done.length > 0};
   }
 
@@ -278,6 +278,7 @@ globalThis.RZ = globalThis.RZ || {};
         repo.delete_rows(d.id, ids, false);
       });
       defs.splice(defs.indexOf(d), 1);
+      db.coords = null;
     } else throw new ValidationError('Что сделать с листом?');
     db.set('custom', defs);
     sh.register_custom(defs);

@@ -14,7 +14,7 @@
     const el = document.createElement('div');
     el.className = 'pass-veil'; el.id = 'passGate';
     el.innerHTML = `<form class="pass-box" autocomplete="off">` +
-      `<svg class="gl-logo" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21.5s7.5-6.6 7.5-12.4a7.5 7.5 0 0 0-15 0c0 5.8 7.5 12.4 7.5 12.4z"/><circle cx="9.2" cy="9.2" r="2.3"/><circle cx="14.8" cy="9.2" r="2.3" stroke="#58A6FF"/></svg>` +
+      `<img class="pass-logo" src="icons/icon-192.png" width="72" height="72" alt="">` +
       `<h2>GeoLink</h2><p>${again ? 'Пароль изменился. Введите новый пароль.' : 'Введите пароль, чтобы начать работу.'}</p>` +
       `<input type="password" id="passIn" inputmode="numeric" autocomplete="off" aria-label="Пароль" placeholder="Пароль">` +
       `<div class="pass-err" id="passErr"></div><button type="submit" class="btn main">Войти</button></form>`;

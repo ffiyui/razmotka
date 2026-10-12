@@ -1,58 +1,45 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Значки GeoLink (PIL): минималистичный логотип в стиле GitHub - контурная метка на карте,
-внутри два звена связи, на тёмном фоне Primer (#0D1117), акцент - синий #58A6FF.
-Тот же рисунок, что и в шапке приложения (GL_LOGO в js/journals.js).
+"""Значки GeoLink по эталону icons/logo-src.png (белый знак «< / >»: вешка, вбитая в землю, на чёрном).
+Эталон увеличивается в 4 раза со сглаживанием и порогом - края получаются ровными, затем уменьшается до нужного размера.
+Получаются: icon-192/512 (скруглённый чёрный квадрат), icon-maskable-512 (знак в безопасной зоне), apple-touch-icon
+(чёрный квадрат во весь размер: iPhone скругляет сам) и logo-mark.png (белый знак без фона - для шапки приложения).
 Запуск вручную: python3 tools/make_logo.py  ->  icons/*.png"""
-import math, os
-from PIL import Image, ImageDraw
+import os
+from PIL import Image, ImageDraw, ImageFilter
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'icons')
-N = 1024
-BG = (13, 17, 23); FG = (240, 246, 252); ACC = (88, 166, 255); RING = (48, 54, 61)
-
-
-def art(scale, bg=True, rounded=True):
-    im = Image.new('RGBA', (N, N), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    if bg:
-        if rounded:
-            d.rounded_rectangle([0, 0, N - 1, N - 1], radius=0, fill=BG + (255,))
-        else:
-            d.rectangle([0, 0, N, N], fill=BG + (255,))
-    u = N / 24 * scale                     # единица сетки 24x24, как у SVG
-    ox = oy = N / 2 - 12 * u
-    P = lambda x, y: (ox + x * u, oy + y * u)
-    w = max(2, int(1.5 * u))
-    col = FG + (255,)
-    dot = lambda q, cl=col: d.ellipse([q[0] - w / 2, q[1] - w / 2, q[0] + w / 2, q[1] + w / 2], fill=cl)
-    # контур метки: дуга окружности r=7.5 вокруг (12, 9.1) и две касательные к острию (12, 21.5)
-    cx, cy, r, tip = 12, 9.1, 7.5, (12, 21.5)
-    a = math.degrees(math.acos(r / (tip[1] - cy)))
-    s1, s2 = 90 + a, 90 - a                       # углы точек касания (ось y вниз)
-    c0, c1 = P(cx - r, cy - r), P(cx + r, cy + r)
-    rr = (r * u) - w / 2                           # PIL рисует ширину внутрь рамки: рамку расширяем на w/2
-    box = [P(cx, cy)[0] - r * u - w / 2, P(cx, cy)[1] - r * u - w / 2, P(cx, cy)[0] + r * u + w / 2, P(cx, cy)[1] + r * u + w / 2]
-    d.arc(box, start=s1, end=s2 + 360, fill=col, width=w)
-    for ang in (s1, s2):
-        t = math.radians(ang); q = P(cx + r * math.cos(t), cy + r * math.sin(t))
-        d.line([q, P(*tip)], fill=col, width=w); dot(q)
-    dot(P(*tip))
-    # два звена связи
-    for (x, cl) in ((9.2, FG), (14.8, ACC)):
-        c = P(x, 9.2); R = 2.3 * u + w / 2
-        d.ellipse([c[0] - R, c[1] - R, c[0] + R, c[1] + R], outline=cl + (255,), width=w)
-    return im
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(HERE, '..', 'icons')
+BIG = 2048
 
 
-def save(img, size, name):
-    img.resize((size, size), Image.LANCZOS).convert('RGB').save(os.path.join(OUT, name), optimize=True)
+def mark():
+    """Белый знак (маска L, BIG x BIG): эталон, увеличенный и сглаженный"""
+    src = Image.open(os.path.join(OUT, 'logo-src.png')).convert('L')
+    m = src.resize((BIG, BIG), Image.BICUBIC).filter(ImageFilter.GaussianBlur(BIG / 441 * .9))
+    return m.point(lambda v: 255 if v > 128 else 0)
+
+
+def icon(size, rounded=True, scale=1.0):
+    m = mark()
+    if scale != 1.0:                                   # знак меньше - для maskable (безопасная зона)
+        k = int(BIG * scale); s = m.resize((k, k), Image.LANCZOS)
+        m = Image.new('L', (BIG, BIG), 0); m.paste(s, ((BIG - k) // 2, (BIG - k) // 2))
+    bg = Image.new('L', (BIG, BIG), 0)
+    if rounded: ImageDraw.Draw(bg).rounded_rectangle([0, 0, BIG - 1, BIG - 1], radius=int(BIG * .055), fill=255)
+    else: bg = Image.new('L', (BIG, BIG), 255)
+    out = Image.new('RGBA', (BIG, BIG), (0, 0, 0, 0))
+    out.paste(Image.new('RGBA', (BIG, BIG), (0, 0, 0, 255)), (0, 0), bg)
+    out.paste(Image.new('RGBA', (BIG, BIG), (255, 255, 255, 255)), (0, 0), m)
+    return out.resize((size, size), Image.LANCZOS)
 
 
 if __name__ == '__main__':
-    os.makedirs(OUT, exist_ok=True)
-    save(art(.78), 512, 'icon-512.png')
-    save(art(.78), 192, 'icon-192.png')
-    save(art(.62), 512, 'icon-maskable-512.png')
-    save(art(.74), 180, 'apple-touch-icon.png')
+    icon(512).save(os.path.join(OUT, 'icon-512.png'), optimize=True)
+    icon(192).save(os.path.join(OUT, 'icon-192.png'), optimize=True)
+    icon(512, rounded=False, scale=.82).convert('RGB').save(os.path.join(OUT, 'icon-maskable-512.png'), optimize=True)
+    icon(180, rounded=False).convert('RGB').save(os.path.join(OUT, 'apple-touch-icon.png'), optimize=True)
+    m = mark().resize((256, 256), Image.LANCZOS)
+    w = Image.new('RGBA', (256, 256), (255, 255, 255, 0)); w.putalpha(m)
+    w.crop(w.getbbox()).save(os.path.join(OUT, 'logo-mark.png'), optimize=True)
     print('ok')

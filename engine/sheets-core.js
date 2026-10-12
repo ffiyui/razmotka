@@ -308,7 +308,7 @@ globalThis.RZ = globalThis.RZ || {};
      workers - таблица ID исполнителей, как «ID топографов»;
      plain - простая таблица: дата, линия, пикет, текст, примечание.
      Описания хранятся в базе (часть custom) и в файле проекта; здесь они превращаются в обычные листы. */
-  const CUSTOM_KINDS = ['work', 'workers', 'plain'];
+  const CUSTOM_KINDS = ['work', 'workers', 'plain', 'sps'];
   const BUILTIN = new Set(Object.keys(SHEETS));
   const custom_id = id => typeof id === 'string' && /^c[a-z0-9]{2,24}$/.test(id) && !BUILTIN.has(id);
   function custom_sheet(d) {
@@ -318,6 +318,8 @@ globalThis.RZ = globalThis.RZ || {};
       col('name', 'ФИО исполнителя', 'text', 260),
       col('same', 'ID (дубль)', 'calc', 160, {calc: 'same_id'}),
     ], 'workers', {heading: false, blank: 20});
+    if (d.kind === 'sps') return sheet(d.id, title, SPS_COLS(), 'sps', {heading: false, blank: 200,     // ещё одна страница SPS
+      hint: 'Координаты пикетов этой страницы SPS. Вместе с SPS R и SPS S - проектная сетка.'});
     if (d.kind === 'plain') return sheet(d.id, title, [
       col('date', 'Дата', 'date', 104, DATE_ERR),
       col('line', 'Линия', 'int', 84, LINE_ERR),
@@ -354,8 +356,10 @@ globalThis.RZ = globalThis.RZ || {};
     return ok;
   }
 
+  /* Листы с координатами проектной сетки: SPS R, SPS S и добавленные страницы SPS */
+  const is_sps = n => !!(SHEETS[n] && SHEETS[n].kind === 'sps');
   RZ.sh = {
-    TITLE_PREFIX, INFO_PARTY_ROW, MISSING, NO_VALUE, SHEETS, JOURNAL, ORDER, WORK, ROWS, INFO_RULES, INFO_DEFAULT,
+    is_sps, TITLE_PREFIX, INFO_PARTY_ROW, MISSING, NO_VALUE, SHEETS, JOURNAL, ORDER, WORK, ROWS, INFO_RULES, INFO_DEFAULT,
     CUSTOM_KINDS, BUILTIN, custom_id, register_custom,
     parse_date, parse_int, parse_num, normalize, channels, worker_lookup, worker_id, computed, sheet_index,
     blank_values, is_blank, display, round4, round_half_even,

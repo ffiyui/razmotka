@@ -14,9 +14,9 @@ globalThis.RZ = globalThis.RZ || {};
   const PARTS = ['journal', 'sps', 'dxf', 'tracks', 'settings'];
   /* Листы, которые объединяются: встроенные и свои листы пользователя (sheets-core.js, register_custom) */
   /* Листы журнала в файле проекта: все, кроме SPS S (он идёт вместе с SPS R, частью «sps») */
-  const JR = () => sh.ROWS.filter(n => n !== 'spss');
+  const JR = () => sh.ROWS.filter(n => !sh.is_sps(n));
   const PEOPLE_LIST = () => ['workers', 'topo', ...sh.ROWS.filter(n => sh.SHEETS[n].custom && sh.SHEETS[n].kind === 'workers')];
-  const MERGED_LIST = () => ['razm', 'podm', 'razb', 'oo', 'snake', ...sh.ROWS.filter(n => sh.SHEETS[n].custom && sh.SHEETS[n].kind !== 'workers')];
+  const MERGED_LIST = () => ['razm', 'podm', 'razb', 'oo', 'snake', ...sh.ROWS.filter(n => sh.SHEETS[n].custom && sh.SHEETS[n].kind !== 'workers' && sh.SHEETS[n].kind !== 'sps')];
   const NOT_A_PROJECT = 'Это не файл проекта. Нужен файл .rzm, сохранённый кнопкой «Сохранить файл проекта».';
   const pending = new Map();                 // проверенные файлы ждут решения пользователя: ключ -> источники
   const pad = n => String(n).padStart(2, '0');
@@ -41,6 +41,7 @@ globalThis.RZ = globalThis.RZ || {};
       if (!keep) journal.gone = [...repo.gone_uids()];
       if (parts.has('sps')) journal.sps = repo.sheet_rows('sps').map(r => r[2]);
       if (parts.has('sps')) journal.spss = repo.sheet_rows('spss').map(r => r[2]);       // SPS S: настольная программа его не читает
+      if (parts.has('sps')) journal.sps_x = Object.fromEntries(sh.ROWS.filter(n => sh.is_sps(n) && n !== 'spss').map(n => [n, repo.sheet_rows(n).map(r => r[2])]));   // добавленные страницы SPS
       return RZ.svc_sheets.party(repo);
     });
     journal.custom = db.get('custom', []) || [];             // свои листы пользователя: описания
@@ -363,6 +364,13 @@ globalThis.RZ = globalThis.RZ || {};
       if (want.has('sps') && Array.isArray(first.journal.spss)) {                  // SPS S - только если он есть в файле (файл с ПК его не несёт)
         repo.clear_sheet('spss');
         first.journal.spss.filter(Array.isArray).forEach((r, k) => repo.insert_row('spss', k + 1, [...r, null, null, null, null, null].slice(0, 5)));
+      }
+      if (want.has('sps') && first.journal.sps_x && typeof first.journal.sps_x === 'object') {   // добавленные страницы SPS из файла
+        for (const [name, rows] of Object.entries(first.journal.sps_x)) {
+          if (!sh.is_sps(name) || !Array.isArray(rows)) continue;
+          repo.clear_sheet(name);
+          rows.filter(Array.isArray).forEach((r, k) => repo.insert_row(name, k + 1, [...r, null, null, null, null, null].slice(0, 5)));
+        }
       }
       repo.rebuild_state(same_day);
       const c = {}; for (const k of JR()) c[k] = repo.sheet_rows(k).length;

@@ -26,6 +26,7 @@ const CUSTOM_COLORS = ['#3FB950', '#DB61A2', '#39C5CF', '#E3B341', '#FF7B72', '#
 const isLayerCustom = k => /^c[a-z0-9]{2,24}$/.test(k) && !MAP_DEFAULT[k];
 function layerDefault(k) {
   if (MAP_DEFAULT[k]) return JSON.parse(JSON.stringify(MAP_DEFAULT[k]));
+  if (typeof Sheets !== 'undefined' && Sheets.pages[k] && Sheets.pages[k].meta.kind === 'sps') return {c: '#8B949E', shape: 'diamond', k: .9};
   let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return {c: CUSTOM_COLORS[h % CUSTOM_COLORS.length], shape: 'circle', k: 1.5};
 }
@@ -112,8 +113,8 @@ const CL_OFF = new Set();
 function customLegend() {
   const box = $('lgCustom'), c = F.custom || {};
   const ids = Object.keys(c).filter(id => c[id].length);
-  const row = id => `<label data-c="${id}"><input type="checkbox"${CL_OFF.has(id) ? '' : ' checked'}><button type="button" class="sw" data-layer="${id}" title="Форма, размер и цвет точек"></button>` +
-    `${esc(layerTitle(id))} <span class="lg-n">${nf(c[id].length / 6)}</span></label>`;
+  const row = (id, n) => `<label data-c="${id}"><input type="checkbox"${CL_OFF.has(id) ? '' : ' checked'}><button type="button" class="sw" data-layer="${id}" title="Форма, размер и цвет точек"></button>` +
+    `${esc(layerTitle(id))} <span class="lg-n">${nf(n === undefined ? c[id].length / 6 : n)}</span></label>`;
   // каждый вид работ - в вкладке своего журнала: встроенного (ГФО, ТГО) или своего
   document.querySelectorAll('#legend .lg-cx').forEach(x => { x.innerHTML = ''; });
   const panes = new Map();
@@ -124,6 +125,8 @@ function customLegend() {
     if (!panes.has(gid)) panes.set(gid, {title: g ? g.title : 'Свои листы', rows: []});
     panes.get(gid).rows.push(row(id));
   }
+  const spsx = document.querySelector('#legend .lg-pane[data-pane="sps"] .lg-cx');      // добавленные страницы SPS - во вкладке «Проектные SPS»
+  if (spsx) spsx.innerHTML = Object.entries(F.sps_x || {}).filter(([, a]) => a.length).map(([id, a]) => row(id, a.length / 2)).join('');
   box.innerHTML = [...panes].map(([gid, p]) => `<div class="lg-pane" data-pane="${esc(gid)}" data-title="${esc(p.title)}">${p.rows.join('')}</div>`).join('');
   const root = $('legend');
   root.querySelectorAll('label[data-c] .sw').forEach(b => { b.onclick = e => { e.preventDefault(); openLayerStyle(b); }; });
@@ -220,7 +223,7 @@ async function loadField() {
   }).join('') : '<div class="empty">На поле нет оборудования.</div>';
 
   $('lgSps').style.display = $('lgSpsS').style.display = F.schematic ? 'none' : '';
-  F.sps_s = F.sps_s || [];
+  F.sps_s = F.sps_s || []; F.sps_x = F.sps_x || {};
   $('linesTitle').textContent = keys.length ? `Размотанные линии: ${nf(keys.length)}, каналов на поле: ${nf(keys.reduce((t, l) => t + by[l].reduce((s, x) => s + x[1] - x[0] + 1, 0), 0))}` : 'Размотанные линии';
   $('lgLeft').style.display = F.left.length ? '' : 'none';
   $('lgLost').style.display = F.lost.length ? '' : 'none';
@@ -233,7 +236,7 @@ async function loadField() {
   $('uBtn').title = F.schematic ? 'Подложка привязывается к координатам листа SPS: сначала заполните его' : '';
   $('uList').style.display = F.schematic ? 'none' : '';
 
-  BSETS = F.sps.length || F.sps_s.length ? [[F.sps, 2], [F.sps_s, 2]] : [[F.field, 6], [F.left, 4], [F.lost, 4], [F.staked, 6], [F.plan, 4], ...Object.values(F.custom).map(a => [a, 6])];
+  BSETS = F.sps.length || F.sps_s.length || Object.keys(F.sps_x).length ? [[F.sps, 2], [F.sps_s, 2], ...Object.values(F.sps_x).map(a => [a, 2])] : [[F.field, 6], [F.left, 4], [F.lost, 4], [F.staked, 6], [F.plan, 4], ...Object.values(F.custom).map(a => [a, 6])];
   B = bounds(BSETS);
   if (!V.restored) { V.restored = true; setAngle(+PREFS.map_tilt || 0); }      // наклон прошлого сеанса
   $('mLevel').disabled = !B;
@@ -415,6 +418,7 @@ function drawPoints(d, w, h) {
     const z = Math.max(1.3, Math.min(7, V.s * 18));
     if ($('lSps').checked) layer(F.sps, 2, MS.sps, z);
     if ($('lSpsS').checked && F.sps_s) layer(F.sps_s, 2, msOf('spss'), z);
+    for (const [id, a] of Object.entries(F.sps_x || {})) if (!CL_OFF.has(id)) layer(a, 2, msOf(id), z);     // добавленные страницы SPS
     if ($('lPlan').checked) layer(F.plan, 4, MS.plan, z);
     if ($('lRazb').checked) layer(perArr('razb', F.staked), 6, MS.razb, z);       // разбитый пикет крупнее оборудования: виден каймой вокруг него
     for (const [id, a] of Object.entries(F.custom || {})) if (!CL_OFF.has(id)) layer(perArr(id, a), 6, msOf(id), z);   // свои листы работ

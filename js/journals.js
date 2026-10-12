@@ -4,8 +4,7 @@
    - На главной журналы - кнопки с карандашом (название и значок); ниже - «Отчёты».
    - На листе журнала сверху вкладки его листов: значок, название, карандаш у открытой, «+» - новый лист.
    Свои листы хранит движок (engine/sheets-core.js, register_custom; /api/custom), раскладку и значки - меню (/api/ui). */
-const GL_LOGO = '<svg class="gl-logo" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-  '<path d="M12 21.5s7.5-6.6 7.5-12.4a7.5 7.5 0 0 0-15 0c0 5.8 7.5 12.4 7.5 12.4z"/><circle cx="9.2" cy="9.2" r="2.3"/><circle cx="14.8" cy="9.2" r="2.3" stroke="var(--c-blue)"/></svg>';
+const GL_LOGO = '<img class="gl-logo" src="icons/logo-mark.png" width="30" height="30" alt="" aria-hidden="true">';     // знак GeoLink (icons, tools/make_logo.py)
 const PENCIL = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5l2.5 2.5L6 12.5H3.5V10z"/><path d="M9.5 4l2.5 2.5"/></svg>';
 const BUILTIN_GROUPS = new Set(['gfo', 'tgo', 'rep']);
 const PAGE_ICON = {razm: 'reel', podm: 'rewind', razb: 'stake', oo: 'box', snake: 'route', info: 'info', workers: 'idcard', topo: 'idcard',
@@ -20,7 +19,7 @@ const isWorkPage = id => !!(Sheets.pages[id] && Sheets.pages[id].work);
 function journalsSync() {
   let changed = false;
   for (const p of Object.values(Sheets.pages)) {
-    if (!p.meta.custom || navGroupOf(p.name)) continue;
+    if (!p.meta.custom || p.meta.kind === 'sps' || navGroupOf(p.name)) continue;      // страницы SPS - не в журналах, а на странице «SPS»
     let g = NAV.groups.find(x => x.id === p.meta.journal) || NAV.groups.find(x => !x.report && x.title === p.meta.prefix);
     if (!g) {
       g = {id: p.meta.journal || 'j' + Math.random().toString(36).slice(2, 9), title: p.meta.prefix || 'Журнал', icon: 'journal', items: []};
@@ -107,6 +106,44 @@ $('homeNote').addEventListener('input', () => {
 $('homeNoteMore').onclick = () => { $('homeNoteBox').classList.toggle('open'); noteSize(); };
 
 // ---------------------------------------------------------------- вкладки листов журнала
+/* Страница «SPS»: вкладки R, S и добавленные страницы, «+» - новая страница */
+const spsPages = () => ['sps', 'spss', ...Object.keys(Sheets.pages).filter(id => Sheets.pages[id].meta.custom && Sheets.pages[id].meta.kind === 'sps')];
+const SPS_TAB = {sps: 'R — пункты приёма', spss: 'S — пункты возбуждения'};
+function spsTabsRender(page, bar) {
+  bar.hidden = false;
+  bar.innerHTML = spsPages().filter(id => Sheets.pages[id]).map(id => `<a class="jt${id === page.name ? ' on' : ''}" href="#${id}" data-p="${id}">${iconSvg('table', 16)}<span>${esc(SPS_TAB[id] || navTitle(id) || Sheets.pages[id].meta.title)}</span>` +
+    (id === page.name && Sheets.pages[id].meta.custom ? `<button type="button" class="jt-edit" data-sps="${id}" aria-label="Изменить страницу SPS">${PENCIL}</button>` : '') + `</a>`).join('') +
+    `<button type="button" class="jt jt-add" data-sps-add="1" aria-label="Новая страница SPS">+</button>`;
+  const on = bar.querySelector('.jt.on');
+  if (on && on.scrollIntoView) on.scrollIntoView({block: 'nearest', inline: 'nearest'});
+}
+async function spsAdd() {
+  const title = await askText('Новая страница SPS', '', 'Например: SPS 2 или SPS доп.');
+  if (title === null) return;
+  if (!title) return toast('Введите название страницы.');
+  const j = await post('/api/custom', {add: {kind: 'sps', title, journal: 'sps', prefix: 'SPS'}});
+  if (j.error) return toast(j.error);
+  await refreshSheets(); dirty.field = true;
+  location.hash = '#' + j.id;
+}
+async function spsEdit(id) {
+  const p = Sheets.pages[id];
+  if (!p) return;
+  const r = await askNameIcon('Страница SPS', p.meta.title, 'table', true);
+  if (!r) return;
+  if (r.remove) {
+    if (!await ask('Удалить страницу SPS?', `<p>Страница «${esc(p.meta.title)}» удалится вместе с координатами. Отменить это нельзя.</p>`, 'Удалить')) return;
+    const j = await post('/api/custom', {remove: id});
+    if (j.error) return toast(j.error);
+    await refreshSheets(); dirty.field = true; await loadSummary();
+    location.hash = '#sps';
+    return;
+  }
+  if (!r.title) return toast('Введите название страницы.');
+  const j = await post('/api/custom', {rename: {id, title: r.title}});
+  if (j.error) return toast(j.error);
+  await refreshSheets(); p.show();
+}
 function jtabsRender(page) {
   let bar = page.el.querySelector('.jtabs');
   if (!bar) {
@@ -114,10 +151,13 @@ function jtabsRender(page) {
     page.el.insertBefore(bar, page.el.firstChild);
     bar.addEventListener('click', e => {
       const ed = e.target.closest('.jt-edit'), add = e.target.closest('.jt-add');
+      if (ed && ed.dataset.sps) { e.preventDefault(); return spsEdit(ed.dataset.sps); }
+      if (add && add.dataset.spsAdd) return spsAdd();
       if (ed) { e.preventDefault(); return editSheet(ed.dataset.p); }
       if (add) return newSheet(add.dataset.g);
     });
   }
+  if (page.meta.kind === 'sps') return spsTabsRender(page, bar);
   const g = navGroupOf(page.name);
   if (!g || g.report) { bar.hidden = true; return; }
   bar.hidden = false;
