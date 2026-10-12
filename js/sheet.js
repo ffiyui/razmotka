@@ -307,7 +307,7 @@ class SheetPage {
       this.dirtyRows.delete(r); this.removedRows.add(r);
       if (r.wasDone) { r.wasDone = false; this.recount = true; }     // учёт на поле изменился
     }
-    if (this.name === 'sps' || this.name === 'oo' || this.name === 'info') dirty.field = true;   // от них зависит карта
+    if (this.name === 'sps' || this.name === 'spss' || this.name === 'oo' || this.name === 'info') dirty.field = true;   // от них зависит карта
     this.setSave('pending');
     this.updateBar();
     if (this.meta.kind === 'workers') {                       // список исполнителей изменился: ID в листах работ пересчитываются
@@ -346,7 +346,7 @@ class SheetPage {
         }
         this.setSave('saved');
         if (this.name === 'info') { await loadSummary(); this.el.querySelector('.sh-h').textContent = this.title(); }
-        if (this.name === 'sps') loadSummary();
+        if (this.name === 'sps' || this.name === 'spss') loadSummary();
         if (this.recount) { this.recount = false; await this.syncAction(); }
         return true;
       } catch (j) {

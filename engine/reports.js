@@ -29,9 +29,10 @@ globalThis.RZ = globalThis.RZ || {};
       this.points = new Map();
       this.list = [];                                           // [линия, пикет, x, y] для поиска ближайшего пикета
       this.grid = null;
-      this.background = [];
+      this.background = [];                                     // проектные пикеты SPS R (x, y подряд)
+      this.background_s = [];                                   // проектные пункты SPS S
       const ends = new Map();                                   // линия -> [мин. пикет, его xy, макс. пикет, его xy]
-      for (const [line, picket, x, y] of repo.sps_points()) {
+      for (const [line, picket, x, y, s] of repo.sps_points()) {
         const key = line * 1e6 + picket;
         if (!this.points.has(key)) {                            // как ВПР: берётся первое совпадение
           this.points.set(key, [round_to(x, 1), round_to(y, 1)]);
@@ -41,7 +42,7 @@ globalThis.RZ = globalThis.RZ || {};
           if (picket < e[0]) { e[0] = picket; e[1] = [x, y]; }
           if (picket > e[2]) { e[2] = picket; e[3] = [x, y]; }
         }
-        this.background.push(round_to(x, 1), round_to(y, 1));
+        (s ? this.background_s : this.background).push(round_to(x, 1), round_to(y, 1));
       }
       this.line_angle = line_angle(ends.values());
       this.schematic = this.points.size === 0;
@@ -198,7 +199,7 @@ globalThis.RZ = globalThis.RZ || {};
     }
     return {
       staked, plan, custom,
-      sps: c.schematic ? [] : c.background, schematic: c.schematic, field: points, dates: [...dates.keys()], names: [...names.keys()],
+      sps: c.schematic ? [] : c.background, sps_s: c.schematic ? [] : c.background_s, schematic: c.schematic, field: points, dates: [...dates.keys()], names: [...names.keys()],
       segments: RZ.rules.segments(rows.map(r => [r[0], r[1], 0])).map(s => s.slice(0, 3)),
       no_xy, left, lost, line_angle: c.schematic ? 0 : c.line_angle,
     };
@@ -265,6 +266,12 @@ globalThis.RZ = globalThis.RZ || {};
   }
 
   const stats = (db, d1, d2) => db.read(repo => repo.stats(d1, d2));
+  /* Статистика одного вида работ (лист работ): {sheet, title, unit, days, workers, lines, total} */
+  function sheet_stats(db, name, d1, d2) {
+    const s = RZ.sh.SHEETS[name];
+    if (!s || !RZ.sh.WORK.includes(name)) throw new RZ.ValidationError('Неизвестный вид работ.');
+    return {sheet: name, title: s.title, unit: s.unit, ...db.read(repo => repo.sheet_stats(name, d1 || '0000-00-00', d2 || '9999-99-99'))};
+  }
   /* Лидеры за период: по каждому листу работ, по убыванию объёма */
   function leaders(db, d1, d2) {
     const got = db.read(repo => repo.leaders(d1 || '0000-00-00', d2 || '9999-99-99'));
@@ -295,5 +302,5 @@ globalThis.RZ = globalThis.RZ || {};
     return {items: result, razm: totals.razm, podm: totals.podm, field: totals.field, double_razm: razm, orphan_podm: rows.length - razm};
   }
 
-  RZ.reports = {find, Coords, coords, summary, field_map, period, stats, leaders, check, round_to, line_angle, picket_xy, nearest};
+  RZ.reports = {find, Coords, coords, summary, field_map, period, stats, sheet_stats, leaders, check, round_to, line_angle, picket_xy, nearest};
 })(globalThis.RZ);

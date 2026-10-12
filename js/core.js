@@ -21,7 +21,7 @@ function plural(n,a,b,c){n=Math.abs(n)%100;const k=n%10;return n>10&&n<20?c:k===
 /* Сводка и признаки «данные изменились» для экранов */
 let S=null, dirty={};
 function markDirty(sheetsToo){for(const k of ['field','stats','check'])dirty[k]=true;
-  if(sheetsToo)for(const k of ['razm','podm','razb','oo','snake','info','workers','topo','sps'])dirty[k]=true}
+  if(sheetsToo)for(const k of ['razm','podm','razb','oo','snake','info','workers','topo','sps','spss'])dirty[k]=true}
 async function loadSummary(){S=await api('/api/summary');
   $('navbad').textContent=S.bad?nf(S.bad):'';
   $('nav-razm').textContent=S.drafts.razm?nf(S.drafts.razm):'';

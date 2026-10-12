@@ -58,6 +58,14 @@ globalThis.RZ = globalThis.RZ || {};
   ];
 
   /* Разбивка: топографы выносят пикеты на местность. Первые шесть столбцов те же, что у размотки */
+  /* Столбцы листов SPS R и SPS S */
+  const SPS_COLS = () => [
+    col('line', 'Профиль', 'int', 110, {lo: 1, hi: 99999, err_title: 'Профиль', err: 'Введите номер профиля: целое число'}),
+    col('picket', 'Пикет', 'int', 110, PICKET_ERR('Пикет')),
+    col('x', 'X', 'num', 150, {err_title: 'X', err: 'Введите число, например 457982,96'}),
+    col('y', 'Y', 'num', 150, {err_title: 'Y', err: 'Введите число, например 5704018,11'}),
+    col('z', 'Z', 'num', 110, {err_title: 'Z', err: 'Введите число, например 123,6'}),
+  ];
   const RAZB_COLS = () => [
     col('date', 'Дата', 'date', 104, DATE_ERR),
     col('worker', 'ФИО топографа', 'text', 184, {suggest: 'topo'}),
@@ -120,21 +128,25 @@ globalThis.RZ = globalThis.RZ || {};
       col('name', 'ФИО топографа', 'text', 260),
       col('same', 'ID топографа (дубль)', 'calc', 190, {calc: 'same_id'}),
     ], 'workers', {heading: false, blank: 20}),
-    /* Координаты пикетов. Из этого листа движок берёт систему координат для карты */
-    sps: sheet('sps', 'SPS', [
+    /* Координаты пикетов. Из этого листа (и из «SPS S») движок берёт систему координат для карты */
+    sps: sheet('sps', 'SPS R', [
       col('line', 'Профиль', 'int', 110, {lo: 1, hi: 99999, err_title: 'Профиль', err: 'Введите номер профиля: целое число'}),
       col('picket', 'Пикет', 'int', 110, PICKET_ERR('Пикет')),
       col('x', 'X', 'num', 150, {err_title: 'X', err: 'Введите число, например 457982,96'}),
       col('y', 'Y', 'num', 150, {err_title: 'Y', err: 'Введите число, например 5704018,11'}),
       col('z', 'Z', 'num', 110, {err_title: 'Z', err: 'Введите число, например 123,6'}),
     ], 'sps', {heading: false, blank: 200,
-      hint: 'Координаты пикетов. Вставьте сюда столбцы из Excel: по ним строится карта на экране «Поле» и проверяется, существует ли пикет.'}),
+      hint: 'Координаты пикетов приёма (R). Вставьте сюда столбцы из Excel: по ним строится карта и проверяется, существует ли пикет. Пункты возбуждения (S) - на листе «SPS S».'}),
+    /* Проектные пункты возбуждения (S): свои профили и пикеты, координаты берутся так же, как из SPS R.
+       Вместе R и S - проектная сетка: все виды работ ищут координаты в обоих листах */
+    spss: sheet('spss', 'SPS S', SPS_COLS(), 'sps', {heading: false, blank: 200,
+      hint: 'Координаты пунктов возбуждения (S). Профили и пикеты свои, не как в SPS R: вместе листы составляют проектную сетку.'}),
   };
   for (const s of Object.values(SHEETS)) s.meta = () => meta(s);
   const JOURNAL = ['razm', 'podm', 'oo', 'snake', 'info', 'workers'];     // листы книги «Журнал ГФО»
   const WORK = ['razm', 'podm', 'razb'];                                  // листы с проведением: строка ждёт кнопки
-  const ROWS = ['razm', 'podm', 'razb', 'oo', 'snake', 'info', 'workers', 'topo'];   // все листы, кроме SPS
-  const ORDER = [...JOURNAL, 'razb', 'topo', 'sps'];
+  const ROWS = ['razm', 'podm', 'razb', 'oo', 'snake', 'info', 'workers', 'topo', 'spss'];   // все листы, кроме SPS R (spss - SPS S, в журнал не входит)
+  const ORDER = [...JOURNAL, 'razb', 'topo', 'sps', 'spss'];
 
   /* Проверки значений отдельных ячеек листа «Общая информация» (как в книге) */
   const INFO_RULES = {4: [1, 99, 'Номер партии?', 'Введите корректный номер партии']};
@@ -335,7 +347,7 @@ globalThis.RZ = globalThis.RZ || {};
       if (!d || !custom_id(d.id) || !CUSTOM_KINDS.includes(d.kind) || SHEETS[d.id]) continue;
       const s = custom_sheet(d);
       s.custom = true; s.journal = String(d.journal || ''); s.meta = () => ({...meta(s), custom: true, journal: s.journal});
-      SHEETS[d.id] = s; ROWS.push(d.id); ORDER.splice(ORDER.length - 1, 0, d.id);
+      SHEETS[d.id] = s; ROWS.push(d.id); ORDER.splice(ORDER.indexOf('sps'), 0, d.id);
       if (s.kind === 'work') WORK.push(d.id);
       ok.push({id: d.id, kind: d.kind, title: s.title, journal: s.journal, lookup: s.lookup, button: s.button, prefix: s.prefix});
     }

@@ -1,0 +1,45 @@
+/* Пароль входа GeoLink. Пароль лежит в файле password.txt в корне сайта (репозитория): поменяйте в нём строку.
+   - Первый запуск: приложение спрашивает пароль. Верный пароль запоминается на телефоне, дальше не спрашивается.
+   - При каждом запуске с интернетом приложение читает password.txt; если пароль в файле поменяли - спрашивает снова.
+   - Без интернета пароль не спрашивается (кроме самого первого запуска, если файл не прочитать - тогда пароль 1234). */
+(() => {
+  'use strict';
+  const KEY = 'gl_pass', DEFAULT = '1234';
+  let saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) { saved = null; }
+  const read = () => fetch('password.txt?t=' + Date.now(), {cache: 'no-store'})
+    .then(r => (r.ok ? r.text() : Promise.reject(new Error(r.status)))).then(t => t.split(/\r?\n/)[0].trim());
+
+  function gate(want, again) {
+    const el = document.createElement('div');
+    el.className = 'pass-veil'; el.id = 'passGate';
+    el.innerHTML = `<form class="pass-box" autocomplete="off">` +
+      `<svg class="gl-logo" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21.5s7.5-6.6 7.5-12.4a7.5 7.5 0 0 0-15 0c0 5.8 7.5 12.4 7.5 12.4z"/><circle cx="9.2" cy="9.2" r="2.3"/><circle cx="14.8" cy="9.2" r="2.3" stroke="#58A6FF"/></svg>` +
+      `<h2>GeoLink</h2><p>${again ? 'Пароль изменился. Введите новый пароль.' : 'Введите пароль, чтобы начать работу.'}</p>` +
+      `<input type="password" id="passIn" inputmode="numeric" autocomplete="off" aria-label="Пароль" placeholder="Пароль">` +
+      `<div class="pass-err" id="passErr"></div><button type="submit" class="btn main">Войти</button></form>`;
+    document.body.appendChild(el);
+    document.documentElement.classList.add('locked');
+    const inp = el.querySelector('#passIn');
+    setTimeout(() => inp.focus(), 60);
+    el.querySelector('form').onsubmit = e => {
+      e.preventDefault();
+      if (inp.value.trim() === want) {
+        try { localStorage.setItem(KEY, want); } catch (err) { /* без памяти браузера спросит снова */ }
+        el.remove(); document.documentElement.classList.remove('locked');
+        return;
+      }
+      el.querySelector('#passErr').textContent = 'Неверный пароль';
+      el.querySelector('.pass-box').classList.remove('shake'); void el.offsetWidth; el.querySelector('.pass-box').classList.add('shake');
+      inp.select();
+    };
+  }
+  window.PASS = {
+    ready: (async () => {
+      let cur = null;
+      if (navigator.onLine !== false) { try { cur = await read(); } catch (e) { cur = null; } }
+      if (saved === null) { if (!document.body) await new Promise(r => document.addEventListener('DOMContentLoaded', r, {once: true})); gate(cur || DEFAULT, false); }
+      else if (cur && cur !== saved) { if (!document.body) await new Promise(r => document.addEventListener('DOMContentLoaded', r, {once: true})); gate(cur, true); }
+    })(),
+  };
+})();

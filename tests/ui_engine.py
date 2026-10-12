@@ -33,6 +33,7 @@ with sync_playwright() as p:
     dev = p.devices['iPhone 14']
     br = p.chromium.launch()
     ctx = br.new_context(**dev, permissions=['geolocation'], geolocation={'latitude': 51.4652, 'longitude': 56.3954}, accept_downloads=True)
+    ctx.add_init_script("try{localStorage.setItem('gl_pass','1234')}catch(e){}")
     page = ctx.new_page()
     errs = []
     page.on('pageerror', lambda e: errs.append(str(e)))

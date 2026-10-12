@@ -25,7 +25,7 @@
     const r = await askNameIcon(fresh ? 'Новая метка' : 'Метка', m.text || '', m.icon || 'pin', !fresh, extra);
     if (!r) return;
     const a = list().filter(x => x.id !== m.id);
-    if (r.remove) { save(a); toast('Метка удалена.'); return; }
+    if (r.remove) { save(a); post('/api/note', {key: 'm:' + m.id, remove: true}).then(() => window.NOTES && NOTES.load()).catch(() => {}); toast('Метка удалена.'); return; }
     const c = r.form.querySelector('input[name="mkColor"]:checked'), here = r.form.querySelector('#mkHere');
     const n = {...m, text: r.title.slice(0, 60), icon: r.icon, color: c ? c.value : (m.color || COLORS[0])};
     if (here && here.checked && GEO.xy) { n.x = GEO.xy[0]; n.y = GEO.xy[1]; }
@@ -53,7 +53,11 @@
       if (q < bq) { bq = q; best = m; }
     }
     if (!best) return false;
-    edit(best, false);
+    if (window.DIST) DIST.pick(best.x, best.y, null, null);
+    if (window.NOTES) {                                   // сначала маленькая плашка: фото и описание - по кнопке
+      const [sx, sy] = toScreen(best.x, best.y), ic = ICONS[best.icon] || ICONS.pin;
+      NOTES.card({key: 'm:' + best.id, title: best.text || ic[1], sub: 'метка · ' + ic[1].toLowerCase(), x: sx, y: sy, mark: () => edit(best, false)});
+    } else edit(best, false);
     return true;
   };
 
@@ -71,6 +75,7 @@
       ctx.lineWidth = 1.5; ctx.strokeStyle = c; ctx.stroke();
       const img = iconImage(m.icon, c, 18);
       if (img.complete && img.naturalWidth) ctx.drawImage(img, x - 9, y - 9, 18, 18);
+      if (window.NOTES && NOTES.all['m:' + m.id]) { ctx.beginPath(); ctx.arc(x + 11, y - 11, 4.5, 0, 6.2832); ctx.fillStyle = '#58A6FF'; ctx.fill(); }   // есть фото или описание
       if (m.text) {
         const tw = ctx.measureText(m.text).width;
         ctx.fillStyle = 'rgba(13,17,23,.85)'; ctx.beginPath(); ctx.roundRect(x - tw / 2 - 5, y + 17, tw + 10, 16, 4); ctx.fill();

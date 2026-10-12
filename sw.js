@@ -2,7 +2,7 @@
    Версию и список файлов между маркерами пишет tools/build_sw.py (запускать перед выдачей), руками их не править.
    Новая версия ставится, но не включается сама: страница показывает «Доступна новая версия — Обновить»
    и по кнопке присылает сюда сообщение SKIP_WAITING. Старые кэши удаляются при включении новой версии. */
-const VERSION = /*VERSION*/'f4a6ebf2b290'/*END*/;
+const VERSION = /*VERSION*/'be201de2f6bd'/*END*/;
 const FILES = /*FILES*/[
   "./",
   "index.html",
@@ -15,6 +15,7 @@ const FILES = /*FILES*/[
   "fonts/JetBrainsMono.woff",
   "css/primer.css",
   "js/splash.js",
+  "js/pass.js",
   "engine/gk.js",
   "engine/sheets-core.js",
   "engine/rules.js",
@@ -46,6 +47,8 @@ const FILES = /*FILES*/[
   "js/geo.js",
   "js/work.js",
   "js/marks.js",
+  "js/notes.js",
+  "js/dist.js",
   "js/sfx.js",
   "js/god.js",
   "js/tiles.js",
@@ -130,6 +133,7 @@ self.addEventListener('fetch', e => {
   if (req.method === 'GET' && TILE_HOSTS.test(u.hostname)) return e.respondWith(tileResponse(req));   // плитки карты-подложки
   if (req.method !== 'GET' || u.origin !== self.location.origin) return;       // чужое и не GET - мимо кэша
   if (u.pathname.startsWith(BASE + 'api/')) return;                            // данные программы не кэшируются
+  if (u.pathname === BASE + 'password.txt') return;                            // пароль - всегда из сети (js/pass.js)
   if (req.mode === 'navigate' && u.searchParams.has('remote')) return;         // ?remote: проверка на настоящем сервере
   e.respondWith((async () => {
     const hit = await caches.match(req, {cacheName: CACHE, ignoreSearch: true});

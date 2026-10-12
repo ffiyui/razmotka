@@ -13,6 +13,8 @@ globalThis.RZ = globalThis.RZ || {};
   const APP = 'razmotka', FORMAT = 2, EXT = '.rzm';
   const PARTS = ['journal', 'sps', 'dxf', 'tracks', 'settings'];
   /* Листы, которые объединяются: встроенные и свои листы пользователя (sheets-core.js, register_custom) */
+  /* Листы журнала в файле проекта: все, кроме SPS S (он идёт вместе с SPS R, частью «sps») */
+  const JR = () => sh.ROWS.filter(n => n !== 'spss');
   const PEOPLE_LIST = () => ['workers', 'topo', ...sh.ROWS.filter(n => sh.SHEETS[n].custom && sh.SHEETS[n].kind === 'workers')];
   const MERGED_LIST = () => ['razm', 'podm', 'razb', 'oo', 'snake', ...sh.ROWS.filter(n => sh.SHEETS[n].custom && sh.SHEETS[n].kind !== 'workers')];
   const NOT_A_PROJECT = 'Это не файл проекта. Нужен файл .rzm, сохранённый кнопкой «Сохранить файл проекта».';
@@ -31,13 +33,14 @@ globalThis.RZ = globalThis.RZ || {};
     const keep = tasks ? (tasks === 'all' ? sh.WORK : [tasks]) : null;
     const journal = {version: 1, sheets: {}, gone: []};
     const party = db.read(repo => {
-      for (const name of sh.ROWS) {
+      for (const name of JR()) {
         let rows = repo.rows_full(name);
         if (keep && !['info', 'workers', 'topo'].includes(name)) rows = keep.includes(name) ? rows.filter(r => r[3] === null) : [];
         journal.sheets[name] = rows.map(([, pos, v, batch, uid, ts, origin, fmt]) => ({uid, pos, v, done: batch !== null, ts, origin, fmt: fmt || null}));
       }
       if (!keep) journal.gone = [...repo.gone_uids()];
       if (parts.has('sps')) journal.sps = repo.sheet_rows('sps').map(r => r[2]);
+      if (parts.has('sps')) journal.spss = repo.sheet_rows('spss').map(r => r[2]);       // SPS S: настольная программа его не читает
       return RZ.svc_sheets.party(repo);
     });
     journal.custom = db.get('custom', []) || [];             // свои листы пользователя: описания
@@ -76,7 +79,7 @@ globalThis.RZ = globalThis.RZ || {};
     if (!journal || typeof journal.sheets !== 'object') throw new ValidationError('Файл проекта повреждён: не читается журнал.');
     const settings = zip.has('settings.json') ? await json('settings.json') : null;
     const rows = {};
-    for (const k of sh.ROWS) rows[k] = Array.isArray(journal.sheets[k]) ? journal.sheets[k].length : 0;
+    for (const k of JR()) rows[k] = Array.isArray(journal.sheets[k]) ? journal.sheets[k].length : 0;
     rows.sps = Array.isArray(journal.sps) ? journal.sps.length : 0;
     const created = String(m.created || ''), when = created.length >= 16 ? `${created.slice(8, 10)}.${created.slice(5, 7)}.${created.slice(0, 4)} ${created.slice(11, 16)}` : '';
     const stem = String(name).replace(/\.[^.]*$/, '');
@@ -269,7 +272,7 @@ globalThis.RZ = globalThis.RZ || {};
     const first = sources[0], single = sources.length === 1 && !first.partial;
     RZ.sh.register_custom(custom_union(db.get('custom', []), sources));        // свои листы из файлов - чтобы увидеть их строки
     const {here, changes} = db.read(repo => {
-      const here = {}; for (const k of sh.ROWS) here[k] = repo.sheet_rows(k).length;
+      const here = {}; for (const k of JR()) here[k] = repo.sheet_rows(k).length;
       here.sps = repo.sps_count();
       return {here, changes: merge_all(db, repo, sources, new Set(PARTS), false).out};
     });
@@ -298,11 +301,11 @@ globalThis.RZ = globalThis.RZ || {};
 
   /* Заменяет журнал содержимым файла: выполненные строки получают след в учёте, как после кнопки */
   function replace_journal(repo, cfg, journal) {
-    for (const name of sh.ROWS) repo.clear_sheet(name);
+    for (const name of JR()) repo.clear_sheet(name);
     repo.clear_events(); repo.clear_staked(); repo.clear_batches();
     repo._w('gone'); repo.p.gone = (journal.gone || []).map(String); repo.tx.dirty.add('gone');
     const done = new Map();
-    for (const name of sh.ROWS) {
+    for (const name of JR()) {
       const sheet = sh.SHEETS[name];
       (Array.isArray(journal.sheets[name]) ? journal.sheets[name] : []).forEach((r, k) => {
         let v;
@@ -357,8 +360,12 @@ globalThis.RZ = globalThis.RZ || {};
         if (want.has('tracks')) tracks = m.tracks;
       }
       if (want.has('sps')) repo.replace_sps(first.journal.sps.filter(Array.isArray).map(r => [...r, null, null, null, null, null].slice(0, 5)));
+      if (want.has('sps') && Array.isArray(first.journal.spss)) {                  // SPS S - только если он есть в файле (файл с ПК его не несёт)
+        repo.clear_sheet('spss');
+        first.journal.spss.filter(Array.isArray).forEach((r, k) => repo.insert_row('spss', k + 1, [...r, null, null, null, null, null].slice(0, 5)));
+      }
       repo.rebuild_state(same_day);
-      const c = {}; for (const k of sh.ROWS) c[k] = repo.sheet_rows(k).length;
+      const c = {}; for (const k of JR()) c[k] = repo.sheet_rows(k).length;
       c.sps = repo.sps_count();
       return c;
     });

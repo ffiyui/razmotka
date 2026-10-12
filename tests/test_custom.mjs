@@ -85,5 +85,38 @@ ok('лист работ удалён вместе с выполненным', s.
 const after = (await P.call('GET', '/api/sheets')).sheets.map(x => x.id);
 ok('встроенные листы на месте', ['razm', 'podm', 'razb', 'topo', 'workers', 'sps'].every(k => after.includes(k)), after);
 
+// ---- SPS S: вторая половина проектной сетки
+{
+  const T = await phone();
+  await T.save('sps', sps([5001], 10));
+  const spsS = Array.from({length: 6}, (_, i) => [7001, 200 + i, 457010 + 50 * i, 5704100, 120]);
+  await T.save('spss', spsS);
+  const f = await T.call('GET', '/api/field');
+  eq('карта: проектные R и S отдельно', [f.sps.length / 2, f.sps_s.length / 2], [10, 6]);
+  ok('координата пикета S', JSON.stringify(await T.call('GET', '/api/picket', {line: 7001, picket: 203})).includes('457160'), await T.call('GET', '/api/picket', {line: 7001, picket: 203}));
+  await T.save('razb', [['2026-10-09', 'Т', 7001, 200, 205, null, null, null]]);
+  await T.save('topo', [[1, 'Т', null]]);
+  const ap2 = await T.call('POST', '/api/sheet/apply', {name: 'razb', force: true});
+  ok('разбивка по профилю S проведена', !ap2.error, ap2);
+  eq('разбитое на S видно на карте с координатами', (await T.call('GET', '/api/field')).staked.length / 6, 6);
+  const st = await T.call('GET', '/api/stats/sheet', {name: 'razb', from: '2026-10-01', to: '2026-10-31'});
+  eq('статистика одного вида работ', [st.total, st.days, st.workers, st.lines], [6, [['2026-10-09', 6]], [['Т', 6]], [[7001, 6]]]);
+  const file = await T.call('GET', '/api/project/export', {});
+  const U = await phone();
+  const r = await U.take([file], 'replace');
+  ok('файл проекта переносит SPS S', !r.error && (await U.call('GET', '/api/field')).sps_s.length === 12, r);
+  // фото и описания
+  const ph = 'data:image/jpeg;base64,' + 'A'.repeat(4000);
+  await T.call('POST', '/api/note', {key: 'p:7001:203', text: 'Колышек сбит', photo: ph});
+  const notes = await T.call('GET', '/api/notes');
+  ok('описание и фото точки сохранены', notes['p:7001:203'] && notes['p:7001:203'].text === 'Колышек сбит' && notes['p:7001:203'].photo, notes);
+  eq('фото читается', (await T.call('GET', '/api/note/photo', {key: 'p:7001:203'})).data, ph);
+  await T.call('POST', '/api/note', {key: 'p:7001:203', photo: null});
+  ok('фото удалено, описание осталось', (await T.call('GET', '/api/notes'))['p:7001:203'].photo === false);
+  ok('чужой ключ не принимается', !!(await T.call('POST', '/api/note', {key: '../x', text: 'a'})).error);
+  await T.call('POST', '/api/note', {key: 'p:7001:203', remove: true});
+  ok('описание удалено', !(await T.call('GET', '/api/notes'))['p:7001:203']);
+}
+
 console.log(`\nПровалено ${bad} из ${n}`);
 process.exit(bad ? 1 : 0);

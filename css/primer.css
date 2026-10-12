@@ -399,3 +399,69 @@ ol.top li.p1 b { color: #E3B341; } ol.top li.p2 b { color: #C9D1D9; } ol.top li.
 .lg-panel { margin: 2px 0 8px 26px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
 .lg-n { margin-left: 6px; font: 500 11px var(--mono); color: var(--fg-muted); }
 #lgCustom:empty { display: none; }
+
+/* ---- учёт: вид работ на странице журнала */
+.st-kinds { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px; }
+.st-kinds[hidden] { display: none; }
+.st-k { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-height: 32px; padding: 4px 12px; border: 1px solid var(--border); background: var(--bg2); color: var(--fg-muted); border-radius: 999px; font: 500 13px Inter, system-ui, sans-serif; }
+.st-k.on { color: var(--fg); border-color: var(--c-blue); box-shadow: var(--glow-blue); }
+.st-cap { margin-bottom: 8px; font-size: 13.5px; color: var(--fg-muted); }
+
+/* ---- плашка точки, фото и описание, рисование */
+.pcard { position: absolute; z-index: 6; max-width: min(320px, calc(100% - 16px)); background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+.pcard[hidden] { display: none; }
+.pc-t { display: flex; flex-direction: column; gap: 2px; }
+.pc-t b { font-size: 14px; color: var(--fg); }
+.pc-t span { font-size: 12px; color: var(--fg-muted); }
+.pc-n { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--fg); }
+.pc-b { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pc-b .btn { display: inline-flex; align-items: center; gap: 6px; }
+.pc-x { margin-left: auto; }
+.nt-ph { display: flex; justify-content: center; align-items: center; min-height: 120px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+.nt-ph img { display: block; max-width: 100%; max-height: 52vh; object-fit: contain; }
+.nt-none { color: var(--fg-muted); font-size: 13px; }
+label.btn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.ped { position: fixed; inset: 0; z-index: 300; background: #010409; display: flex; flex-direction: column; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+.ped-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; background: var(--bg2); border-bottom: 1px solid var(--border); }
+.ped-c { display: flex; gap: 6px; }
+.ped-col { width: 26px; height: 26px; border-radius: 50%; background: var(--c); border: 1px solid var(--border); cursor: pointer; }
+.ped-col.on { outline: 2px solid var(--c-blue); outline-offset: 2px; }
+.ped-w { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.ped-w button { background: none; border: 0; color: var(--fg-muted); padding: 6px 9px; font: 500 12px Inter, system-ui, sans-serif; cursor: pointer; }
+.ped-w button.on { background: var(--bg3); color: var(--fg); }
+.ped-bar .main { margin-left: auto; }
+.ped-box { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 8px; }
+.ped-box canvas { max-width: 100%; max-height: 100%; touch-action: none; border-radius: 4px; }
+
+/* ---- расстояние до точки */
+#mDist[aria-pressed="true"] { color: var(--c-blue); border-color: var(--c-blue); box-shadow: var(--glow-blue); }
+.distchip { position: absolute; left: 50%; transform: translateX(-50%); top: 64px; z-index: 5; display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: var(--bg2); border: 1px solid var(--c-blue); border-radius: 6px; font: 600 13px var(--mono); color: var(--fg); white-space: nowrap; max-width: calc(100% - 24px); }
+.distchip[hidden] { display: none; }
+.distchip span { color: var(--fg-muted); font-weight: 500; }
+.distchip .dc-m { color: var(--c-blue); font-weight: 700; font-size: 15px; }
+.distchip .dc-a { display: inline-flex; color: var(--c-blue); }
+.dc-x { border: 0; background: none; color: var(--fg-muted); font-size: 16px; cursor: pointer; padding: 0 2px; }
+
+/* ---- вкладки слоёв карты */
+.lg-tabs { margin: 0 0 6px; }
+.lg-tabs .jt { min-height: 32px; font-size: 13px; padding: 3px 10px; }
+.lg-pane[hidden] { display: none; }
+#lgCustom:empty { display: none; }
+
+/* ---- пароль входа */
+.pass-veil { position: fixed; inset: 0; z-index: 1000; background: var(--bg, #0D1117); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.pass-box { width: min(340px, 100%); display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; color: var(--fg); }
+.pass-box h2 { margin: 0; font: 700 24px Inter, system-ui, sans-serif; border: 0; text-transform: none; letter-spacing: 0; color: var(--fg); }
+.pass-box p { margin: 0; color: var(--fg-muted); font-size: 14px; }
+.pass-box input { width: 100%; text-align: center; font: 600 22px var(--mono); letter-spacing: .3em; }
+.pass-box .btn { width: 100%; min-height: 44px; }
+.pass-err { min-height: 18px; color: var(--c-red); font-size: 13px; }
+.pass-box.shake { animation: pass-shake .35s; }
+@keyframes pass-shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+html.locked body { overflow: hidden; }
+.lg-tabs { flex: 0 0 auto; }
+.side-period #mKind { flex: 1 1 100%; min-height: 40px; }
+@media (max-width: 820px) {
+  .maptools { gap: 6px; right: 10px; }
+  .maptools .icon-btn { width: 42px; height: 42px; }
+}

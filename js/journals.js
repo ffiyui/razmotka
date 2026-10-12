@@ -9,7 +9,7 @@ const GL_LOGO = '<svg class="gl-logo" width="30" height="30" viewBox="0 0 24 24"
 const PENCIL = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5l2.5 2.5L6 12.5H3.5V10z"/><path d="M9.5 4l2.5 2.5"/></svg>';
 const BUILTIN_GROUPS = new Set(['gfo', 'tgo', 'rep']);
 const PAGE_ICON = {razm: 'reel', podm: 'rewind', razb: 'stake', oo: 'box', snake: 'route', info: 'info', workers: 'idcard', topo: 'idcard',
-  tracks: 'route', stats: 'star', check: 'check', sps: 'table'};
+  tracks: 'route', stats: 'star', check: 'check', sps: 'table', spss: 'table'};
 const pageIcon = id => (NAV.icons && NAV.icons[id]) || PAGE_ICON[id] ||
   (Sheets.pages[id] ? ({work: 'flagpole', workers: 'idcard'}[Sheets.pages[id].meta.kind] || 'table') : 'table');
 const navGroupOf = id => NAV.groups.find(g => g.items.some(it => (navIsFolder(it) ? it.items.includes(id) : it === id))) || null;

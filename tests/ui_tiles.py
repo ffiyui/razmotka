@@ -39,7 +39,7 @@ with sync_playwright() as p:
     ctx.route(re.compile(r'https://(mt\d\.google\.com|server\.arcgisonline\.com|tile\.openstreetmap\.org)/.*'), tile)
     page = ctx.new_page(); errs = []
     page.on('pageerror', lambda e: errs.append(str(e)))
-    page.add_init_script("try{localStorage.setItem('installhint','1')}catch(e){}")
+    page.add_init_script("try{localStorage.setItem('installhint','1');localStorage.setItem('gl_pass','1234')}catch(e){}")
     page.goto(URL); page.wait_for_function('window.RZ && RZ.db', timeout=20000)
     page.evaluate("""async()=>{const rows=[];let n=0;const A=24*Math.PI/180;
       for(let k=0;k<14;k++)for(let i=0;i<120;i++){const x=457000+i*25*Math.cos(A)-k*200*Math.sin(A),y=5704000+i*25*Math.sin(A)+k*200*Math.cos(A);n++;

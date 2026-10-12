@@ -21,7 +21,7 @@ try:
     u.seed()
     with sync_playwright() as p:
         dev = dict(p.devices['iPhone 14']); dev['viewport'] = {'width': 390, 'height': 844}
-        ctx = p.chromium.launch().new_context(**dev); pg = ctx.new_page()
+        ctx = p.chromium.launch().new_context(**dev); ctx.add_init_script("try{localStorage.setItem('gl_pass','1234')}catch(e){}"); pg = ctx.new_page()
         pg.goto(u.URL + '#razm'); pg.wait_for_function("navigator.serviceWorker.controller || navigator.serviceWorker.ready.then(()=>true)", timeout=10000)
         pg.wait_for_timeout(1500); pg.reload(); pg.wait_for_timeout(1500)
         ok('service worker controls page', pg.evaluate("!!navigator.serviceWorker.controller"))
@@ -46,7 +46,7 @@ try:
         ks = pg.evaluate("caches.keys()"); ok('old cache removed after update', len(ks) == 1 and ks[0] != old, ks)
         ok('page has new css', pg.evaluate("fetch('css/app.css').then(r=>r.text()).then(t=>t.includes('/* v2 */'))"))
         # ?remote не регистрирует и не перехватывает
-        ctx2 = p.chromium.launch().new_context(**dev); q = ctx2.new_page()
+        ctx2 = p.chromium.launch().new_context(**dev); ctx2.add_init_script("try{localStorage.setItem('gl_pass','1234')}catch(e){}"); q = ctx2.new_page()
         q.goto(u.URL + '?remote#razm'); q.wait_for_timeout(1200)
         ok('?remote: no service worker', q.evaluate("navigator.serviceWorker.getRegistrations().then(r=>r.length)") == 0)
 finally:

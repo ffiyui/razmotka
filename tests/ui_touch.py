@@ -15,7 +15,7 @@ def page_for(p, name, w=None, h=None, landscape=False):
     if landscape: vp = {'width': vp['height'], 'height': vp['width']}
     dev['viewport'] = vp; dev['has_touch'] = True; dev['is_mobile'] = True
     ctx = p.chromium.launch().new_context(**dev, permissions=['clipboard-read', 'clipboard-write'])
-    ctx.add_init_script("try{localStorage.setItem('installhint','1')}catch(e){}")      # подсказка про установку мешала бы кликам
+    ctx.add_init_script("try{localStorage.setItem('installhint','1');localStorage.setItem('gl_pass','1234')}catch(e){}")      # подсказка про установку мешала бы кликам
     pg = ctx.new_page(); pg.errs = []
     pg.on('pageerror', lambda e: pg.errs.append(str(e)))
     return ctx, pg
@@ -143,9 +143,9 @@ with sync_playwright() as p:
         pg.evaluate("setAngle(0);fit()"); pg.wait_for_timeout(300)
         pt = pg.evaluate("(()=>{const p=toScreen(F.field[0],F.field[1]),r=cv.getBoundingClientRect();return [p[0]+r.left,p[1]+r.top]})()")
         pg.touchscreen.tap(pt[0] + 3, pt[1] + 3); pg.wait_for_timeout(250)
-        ok('tap on point shows tip', pg.evaluate("getComputedStyle(tip).display") == 'block' and 'Линия' in pg.inner_text('#tip'), pg.inner_text('#tip'))
+        ok('tap on point shows card', pg.is_visible('#pCard') and 'Линия' in pg.inner_text('#pCard'), pg.inner_text('#pCard'))
         pg.wait_for_timeout(500); pg.touchscreen.tap(r[0] + 8, r[1] + r[3] - 60); pg.wait_for_timeout(250)
-        ok('tap on empty closes tip', pg.evaluate("getComputedStyle(tip).display") == 'none')
+        ok('tap on empty closes card', pg.is_hidden('#pCard') and pg.evaluate("getComputedStyle(tip).display") == 'none')
         # шторка инструментов
         pg.tap('#sideShow'); pg.wait_for_timeout(500)
         ok('bottom sheet opens', pg.evaluate("document.getElementById('fieldWrap').classList.contains('sheet-open')") and pg.evaluate("document.getElementById('mapSide').getBoundingClientRect().bottom") <= 844 + 2)

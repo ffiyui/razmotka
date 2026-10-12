@@ -121,7 +121,7 @@ globalThis.RZ = globalThis.RZ || {};
       }
       return out;
     });
-    if (name === 'sps' || name === 'info') db.coords = null;      // координаты изменились: карта возьмёт их заново
+    if (name === 'sps' || name === 'spss' || name === 'info') db.coords = null;      // координаты изменились: карта возьмёт их заново
     return {ids};
   }
 
@@ -136,7 +136,7 @@ globalThis.RZ = globalThis.RZ || {};
       if (done.length) { repo.delete_events(done); repo.delete_staked(done); repo.rebuild_state(cfg.rules.same_day); }
       return done;
     });
-    if (name === 'sps') db.coords = null;
+    if (name === 'sps' || name === 'spss') db.coords = null;
     return {ok: true, recalculated: done.length > 0};
   }
 

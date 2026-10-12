@@ -361,10 +361,10 @@ async function finishTask() {
   const u = j.unit === 'пикет' ? picketWord(j.units) : chanWord(j.units);
   const anim = finishPoints(t);
   W.task = null; W.visited = new Set(); resetSteps(); W.state = 'idle'; W.last = null; W.dir = 0; W.moved = false; saveSession(); renderTask();
-  playFinish(anim);
- 
+  V.hold = Date.now();                           // карта после обновления не отъезжает на всё поле: анимация видна там, где работали
   for (const p of Object.values(Sheets.pages)) if (p.work) dirty[p.name] = true;
   await changed(true);
+  playFinish(anim);
   toast(`Внесено в журнал: ${u}` + (j.done.length > 1 ? ` (ПП ${j.done.map(r => rangeText(r[0], r[1])).join(', ')})` : '') + '.');
 }
 $('tkGo').onclick = startTask;
@@ -457,6 +457,7 @@ function finishPoints(t) {
 }
 function playFinish(a) {
   if (!a || !a.pts.length || PREFS.finish_anim === false || document.hidden) { sfx('complete'); return; }
+  if (window.frameOn) frameOn(a.pts);            // камера - на пройденный диапазон
   const n = a.pts.length, step = Math.max(18, Math.min(140, 2400 / n));
   const A = FA.a = {...a, t0: performance.now(), step, last: -1, snd: 0, end: n * step};
   window.FINISH = FA;
@@ -580,9 +581,17 @@ $('tRec').onclick = async () => {
     return toast('Запись трека началась. Чтобы закончить, нажмите эту кнопку ещё раз.');
   }
   const r = T.rec;
-  const ok = await ask('Закончить запись трека?', `<p>${fmtM(r.len)} · ${durText(Math.round((Date.now() - r.t0) / 1000))}</p><label for="trNew">Имя трека</label>` +
-    `<input id="trNew" class="wide" style="width:100%" maxlength="80" value="${esc(trackDefault(r.t0))}">`, 'Сохранить трек');
-  if (!ok) return;
+  const ok = ask('Закончить запись трека?', `<p>${fmtM(r.len)} · ${durText(Math.round((Date.now() - r.t0) / 1000))}</p><label for="trNew">Имя трека</label>` +
+    `<input id="trNew" class="wide" style="width:100%" maxlength="80" value="${esc(trackDefault(r.t0))}">` +
+    `<div class="ni-row"><button type="button" class="btn danger" id="trDrop">Остановить без сохранения</button></div>`, 'Сохранить трек');
+  let drop = false;
+  $('trDrop').onclick = () => { drop = true; $('dYes').click(); };
+  if (!await ok) return;
+  if (drop) {                                         // запись не нужна: останавливаем и ничего не сохраняем
+    if (!await ask('Не сохранять трек?', `<p>Запись (${fmtM(r.len)}) будет остановлена и удалена.</p>`, 'Не сохранять')) return;
+    T.rec = null; remember('track_live', ''); recNote(); draw();
+    return toast('Запись остановлена, трек не сохранён.');
+  }
   T.rec = null; remember('track_live', ''); recNote();
   if (await saveTrack(r, $('trNew').value)) toast('Трек сохранён. Он во вкладке «Треки».');
   draw();
@@ -705,7 +714,7 @@ function drawFind(z) {
   }
   ctx.textBaseline = 'alphabetic';
 }
-window.workDraw = z => { if (F.schematic) return drawFind(z); drawTracks(); if (window.marksDraw) marksDraw(z); drawTask(z); drawFinish(z); drawFind(z); };
+window.workDraw = z => { if (F.schematic) return drawFind(z); drawTracks(); if (window.marksDraw) marksDraw(z); drawTask(z); drawFinish(z); drawFind(z); if (window.distDraw) distDraw(z); };
 
 /* ---------- контуры DXF: приходят с файлом проекта, здесь их показывают ---------- */
 const haText = a => (Math.round(a / 100) / 100).toLocaleString('ru-RU') + ' га';
@@ -862,7 +871,7 @@ async function projectDialog(rep) {
     if (p === 'journal') return m ? 'журнал <small>— новые строки добавятся и будут ждать кнопки</small>' : 'журнал целиком <small>— заменит здешний</small>';
     if (p === 'dxf') return 'контуры DXF <small>— ' + (m ? 'новых слоёв: ' + nf(d.new) : 'слоёв: ' + nf(d.file) + ', заменят здешние (' + nf(d.here) + ')') + '</small>';
     if (p === 'tracks') return 'треки <small>— новых: ' + nf(d.new) + '</small>';
-    if (p === 'sps') return 'лист SPS <small>— ' + nf(d.file) + ' ' + plural(d.file, 'пикет', 'пикета', 'пикетов') + ', заменит здешний (' + nf(d.here) + ')</small>';
+    if (p === 'sps') return 'листы SPS R и S <small>— ' + nf(d.file) + ' ' + plural(d.file, 'пикет', 'пикета', 'пикетов') + ', заменит здешний (' + nf(d.here) + ')</small>';
     return 'правила учёта и система координат <small>— ' + (d.differs ? 'отличаются от здешних' : 'такие же, как здесь') + '</small>';
   };
   const files = rep.files.map(f => `${esc(f.name)} <small>— сохранён ${esc(whenText(f.created || ''))}${f.source ? ', ' + esc(f.source) : ''}${f.partial ? ' · только задания' : ''}</small>`).join('<br>');

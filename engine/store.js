@@ -143,7 +143,7 @@ globalThis.RZ = globalThis.RZ || {};
       const last = arr[arr.length - 1];
       if (last && byPosId(last, row) > 0) this.db.sorted.set(sheet, false);
       arr.push(row);
-      if (sheet === 'sps') this.db.drop_sps_index();
+      if (sheet === 'sps' || sheet === 'spss') this.db.drop_sps_index();
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
       return id;
@@ -155,7 +155,7 @@ globalThis.RZ = globalThis.RZ || {};
       if (i < 0) return;
       arr[i] = {...arr[i], pos, v: values.slice()};
       if (sheet !== 'sps') { arr[i].ts = ts || now_utc(); if (origin !== undefined) arr[i].origin = origin; }
-      if (sheet === 'sps') this.db.drop_sps_index();
+      if (sheet === 'sps' || sheet === 'spss') this.db.drop_sps_index();
       this.db.sorted.set(sheet, false);
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
@@ -189,7 +189,7 @@ globalThis.RZ = globalThis.RZ || {};
       this.p[name] = this.p[name].filter(r => !gone.has(r.id));
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
-      if (sheet === 'sps') this.db.drop_sps_index();
+      if (sheet === 'sps' || sheet === 'spss') this.db.drop_sps_index();
     }
     clear_sheet(sheet) {
       const name = sheet === 'sps' ? 'sps' : 'rows:' + sheet;
@@ -197,7 +197,7 @@ globalThis.RZ = globalThis.RZ || {};
       this.p[name] = [];
       this.db.index.delete(sheet);
       this.tx.dirty.add(sheet);
-      if (sheet === 'sps') this.db.drop_sps_index();
+      if (sheet === 'sps' || sheet === 'spss') this.db.drop_sps_index();
     }
     set_done(ids, batch) {
       const set = new Set(ids);
@@ -283,19 +283,24 @@ globalThis.RZ = globalThis.RZ || {};
     }
 
     // ---- координаты пикетов (лист SPS) -----------------------------------------------------------
-    sps_count() { let n = 0; for (const r of this.p.sps) if (r.v[0] !== null && r.v[1] !== null) n++; return n; }
-    /* Сколько пикетов интервала есть в SPS */
+    /* Проектная сетка - листы SPS R и SPS S вместе */
+    _sps_all() { return this.p.sps.concat(this._rows('spss') || []); }
+    sps_count() { let n = 0; for (const r of this._sps_all()) if (r.v[0] !== null && r.v[1] !== null) n++; return n; }
+    /* Сколько пикетов интервала есть в SPS (R и S) */
     sps_known(line, p1, p2) {
-      const idx = this.db.sps_index(this.p.sps), m = idx.get(line);
+      const idx = this.db.sps_index(this._sps_all()), m = idx.get(line);
       if (!m) return 0;
       let n = 0;
       for (let p = p1; p <= p2; p++) if (m.has(p)) n++;
       return n;
     }
-    /* [линия, пикет, x, y] всех пикетов с координатами, в порядке листа */
+    /* [линия, пикет, x, y, s] всех пикетов с координатами, в порядке листов: сначала SPS R, затем SPS S (s = 1) */
     sps_points() {
       const out = [];
-      for (const r of this._sorted('sps')) { const v = r.v; if (v[0] !== null && v[1] !== null && v[2] !== null && v[3] !== null) out.push([v[0], v[1], v[2], v[3]]); }
+      for (const [name, s] of [['sps', 0], ['spss', 1]]) {
+        if (s && !this._rows('spss')) continue;
+        for (const r of this._sorted(name)) { const v = r.v; if (v[0] !== null && v[1] !== null && v[2] !== null && v[3] !== null) out.push([v[0], v[1], v[2], v[3], s]); }
+      }
       return out;
     }
     /* rows: [[линия, пикет, x, y, z]] */
@@ -448,6 +453,23 @@ globalThis.RZ = globalThis.RZ || {};
         days: rows(days).sort((x, y) => bin(x[0], y[0])),
         workers: rows(workers).sort((x, y) => (y[1] + y[2]) - (x[1] + x[2]) || bin(y[0], x[0])),
         lines: rows(lines).sort((x, y) => x[0] - y[0]),
+      };
+    }
+    /* Статистика одного вида работ за период: по дням, исполнителям и линиям.
+       Размотка и подмотка - каналы проведённых событий, разбивка и свои листы - проведённые пикеты */
+    sheet_stats(sheet, d1, d2) {
+      const days = new Map(), workers = new Map(), lines = new Map();
+      const add = (r, n) => { for (const [m, k] of [[days, r.date], [workers, r.worker], [lines, r.line]]) m.set(k, (m.get(k) || 0) + n); };
+      if (sheet === 'razm' || sheet === 'podm') {
+        const t = sheet === 'razm' ? 1 : 0;
+        for (const r of this.p.events.values()) if (r.type === t && r.date >= d1 && r.date <= d2) add(r, r.p2 - r.p1 + 1);
+      } else for (const r of this.p.staked.values()) if ((r.sheet || 'razb') === sheet && r.date >= d1 && r.date <= d2) add(r, r.p2 - r.p1 + 1);
+      const bin = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
+      return {
+        days: [...days].sort((x, y) => bin(x[0], y[0])),
+        workers: [...workers].filter(([w]) => w).sort((x, y) => y[1] - x[1] || bin(x[0], y[0])),
+        lines: [...lines].sort((x, y) => x[0] - y[0]),
+        total: [...days.values()].reduce((a, b) => a + b, 0),
       };
     }
     /* Лидеры за период по каждому листу работ: {лист: [[исполнитель, объём], ...]} по убыванию объёма.

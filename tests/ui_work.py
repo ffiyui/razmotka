@@ -55,7 +55,7 @@ def chief_project(e0, n0):
 with sync_playwright() as p:
     br = p.chromium.launch()
     ctx = br.new_context(**p.devices[os.environ.get('UI_DEVICE', 'iPhone 14')], accept_downloads=True, permissions=['geolocation'], geolocation={'latitude': 51.4652, 'longitude': 56.3954})
-    ctx.add_init_script("try{localStorage.setItem('installhint','1')}catch(e){}")      # подсказка про установку здесь не нужна
+    ctx.add_init_script("try{localStorage.setItem('installhint','1');localStorage.setItem('gl_pass','1234')}catch(e){}")      # подсказка про установку здесь не нужна
     if os.environ.get('UI_LITE') in ('0', '1'):                                         # облегчённый вид: 1 - включён, 0 - выключен
         ctx.add_init_script("try{localStorage.setItem('lite','%s')}catch(e){}" % os.environ['UI_LITE'])
     page = ctx.new_page(); errs = []
@@ -191,7 +191,10 @@ with sync_playwright() as p:
     ok('полное выполнение', 'Задание пройдено полностью' in page.inner_text('#dBody'))
     page.click('#dYes'); page.wait_for_function("S.field===30", timeout=10000)
     ok('размотка по заданию попала на поле', page.evaluate("S.drafts.razm") == 0)
-    ok('анимация завершения: пикеты загораются на карте по очереди', page.evaluate("!!(window.FINISH && FINISH.a && FINISH.a.pts.length===10)"))
+    page.wait_for_function("window.FINISH && FINISH.a && FINISH.a.pts.length===10", timeout=8000)
+    ok('анимация завершения: пикеты загораются на карте по очереди', True)
+    r = page.evaluate("(()=>{const p=FINISH.a.pts,a=toScreen(...p[0]),b=toScreen(...p[p.length-1]),w=cv.clientWidth,h=cv.clientHeight;return [Math.round(Math.hypot(a[0]-b[0],a[1]-b[1])),[a,b].every(q=>q[0]>0&&q[0]<w&&q[1]>0&&q[1]<h)]})()")
+    ok('камера на пройденном диапазоне: он крупно и целиком на экране', r[0] > 150 and r[1], r)
     page.wait_for_function("ui.log[ui.log.length-1]==='complete' && !FINISH.a", timeout=8000)
     ok('звук при завершении: щелчки по пикетам и итоговый', page.evaluate("ui.log[ui.log.length-1]") == 'complete' and page.evaluate("ui.log.slice(-12).filter(x=>x==='checkpoint').length") >= 5, page.evaluate("ui.log.slice(-14)"))
 
