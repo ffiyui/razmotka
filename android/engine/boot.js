@@ -11,7 +11,7 @@ globalThis.RZ = globalThis.RZ || {};
   RZ.ready = (async () => {
     let kv;
     let first;
-    try { kv = RZ.kv_idb(); first = await kv.load(); }                 // хранилище доступно? (в частном режиме бывает нет)
+    try { kv = RZ.kv_custom ? RZ.kv_custom() : RZ.kv_idb(); first = await kv.load(); }   // хранилище: файлы программы для ПК (js/pc.js) или IndexedDB
     catch (e) { console.warn('IndexedDB недоступна, данные не сохранятся', e); kv = RZ.kv_memory(); first = await kv.load(); RZ.volatile = true; }
     const cfg = RZ.config.from_saved(first.get('config'));
     const db = await RZ.Database.open(kv, cfg.rules.same_day, first);

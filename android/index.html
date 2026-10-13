@@ -14,6 +14,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <title>GeoLink</title>
 <script src="js/compat.js"></script>
+<script src="js/pc.js"></script>
 <link rel="stylesheet" href="css/app.css">
 <link rel="preload" href="fonts/Inter.woff" as="font" type="font/woff" crossorigin>
 <link rel="preload" href="fonts/JetBrainsMono.woff" as="font" type="font/woff" crossorigin>
@@ -229,6 +230,11 @@
   </div>
   <h2>Загрузка</h2>
   <div class="dgrid">
+    <div class="card dcard pc-only" id="pcDxf"><h3>Контуры из DXF</h3>
+      <p>Файлы DXF (или архивы zip, rar) с полями землепользователей, границами и линиями. Слой на карте - папка файла или название ниже; контур с тем же названием заменяется. Координаты - как X и Y листа SPS.</p>
+      <div class="dctl"><div style="width:100%"><label for="pcDxfLayer">Название слоя (необязательно)</label><input id="pcDxfLayer" maxlength="80" style="width:100%"></div></div>
+      <div class="dact"><label class="btn main" for="pcDxfFiles">Выбрать файлы</label><input type="file" id="pcDxfFiles" multiple hidden>
+        <label class="btn" for="pcDxfDir">Выбрать папку</label><input type="file" id="pcDxfDir" webkitdirectory multiple hidden><span class="dnote" id="pcDxfNote"></span></div></div>
     <div class="card dcard"><h3>Журнал из Excel</h3>
       <p>Файл вида «Журнал_ГФО_31_07.xlsx» с листами Размотка, Подмотка, Оставленное оборудование, Змейки и вылеты, Общая информация и ID старших. Листы журнала в программе заменяются листами из файла, строки сразу считаются проведёнными.</p>
       <div class="dctl"><input type="file" id="impJFile" accept=".xlsx,.xlsm"></div>

@@ -85,6 +85,8 @@ function navRender() {
   let html = `<div class="brand"><span data-edit="brand" ${tip}>${esc(NAV.brand)}</span> ` +
     `<span class="brand-sp" data-edit="sp" title="Двойной щелчок — вписать другую СП">${esc(NAV.sp)}</span></div>` +
     `<div class="brand-sub"><span data-edit="sub" ${tip}>${esc(NAV.sub)}</span></div>`;
+  if (window.GL_PC) html += '<div class="navgroup pc-nav"><span>Программа</span></div>' +       // программа для ПК: нижней панели нет
+    [['home', 'Главная'], ['field', 'Карта'], ['data', 'Данные'], ['settings', 'Настройки']].map(([p, t]) => `<a href="#${p}" data-p="${p}" draggable="false">${t}</a>`).join('');
   NAV.groups.forEach((g, gi) => {
     html += `<div class="navgroup" data-g="${gi}"><span data-edit="g${gi}" ${tip}>${esc(g.title)}</span></div>`;
     g.items.forEach((it, i) => {

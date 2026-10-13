@@ -39,6 +39,10 @@ GitHub Pages, Cloudflare Pages, Netlify — достаточно залить с
   завершение — `start`, `pause`, `play`, `complete`. Стиль «механический» или «минимальный», выключатель —
   «Настройки» → «Звуки». Голосового сопровождения в версии для iPhone нет.
 
+## Компьютер
+Программа для ПК - папка `pc/` (запуск `pc/start.bat`), та же GeoLink: страница копируется в `pc/web` командой
+`python3 tools/build_pc.py`, данные хранятся в файлах `pc/data`. Подробно - `pc/README.md`.
+
 ## Android
 Версия для Android - та же GeoLink, что для iPhone: папка `android/` обновляется из корня командой
 `python3 tools/build_android.py` (после правок версии для iPhone), затем GitHub сам собирает приложение.

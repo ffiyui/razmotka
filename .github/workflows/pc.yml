@@ -1,0 +1,32 @@
+# Архив программы для ПК: собирается сам, когда меняется папка pc/, и выкладывается в Releases (выпуск «pc-latest»).
+name: PC
+on:
+  push:
+    branches: [main]
+    paths: ['pc/**', '.github/workflows/pc.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: pc
+  cancel-in-progress: true
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Архив
+        run: |
+          mkdir -p out/GeoLink
+          cp -r pc/. out/GeoLink/
+          rm -rf out/GeoLink/data out/GeoLink/__pycache__
+          cd out && zip -qr GeoLink-PC.zip GeoLink && ls -la
+      - name: Выпуск
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete pc-latest -y --cleanup-tag || true
+          gh release create pc-latest out/GeoLink-PC.zip \
+            --title "GeoLink для компьютера (сборка ${{ github.run_number }})" \
+            --notes "Скачайте GeoLink-PC.zip, распакуйте и запустите start.bat (нужен Python 3.8+). При обновлении замените файлы, папку data не трогайте. Подробно - README.md в архиве." \
+            --target "${{ github.sha }}" --latest=false

@@ -106,6 +106,26 @@ globalThis.RZ = globalThis.RZ || {};
     list[i] = l; ctx.db.set('dxf', list);
     return {ok: true};
   }
+  /* Контуры из файлов DXF (программа для ПК разбирает файлы сама): {layers: {слой: [{name, kind, pts}]}}.
+     Контур с тем же названием в том же слое заменяется */
+  const DXF_COLORS = ['#34C759', '#FF9F0A', '#0A84FF', '#FF375F', '#BF5AF2', '#64D2FF', '#FFD60A', '#AC8E68', '#30B0C7', '#FF6482'];
+  function dxf_add(ctx, j) {
+    const list = (ctx.db.get('dxf', []) || []).slice();
+    let layers = 0, items = 0;
+    for (const [name0, got] of Object.entries((j && j.layers) || {})) {
+      if (!Array.isArray(got)) continue;
+      const name = String(name0 || 'Контуры DXF').slice(0, 80);
+      const add = got.filter(i => i && Array.isArray(i.pts)).map(i => ({name: String(i.name || '').slice(0, 120), kind: String(i.kind || 'line'), pts: i.pts.map(Number)}));
+      let k = list.findIndex(l => l.name === name);
+      if (k < 0) { list.push({uid: RZ.new_uid(), name, color: DXF_COLORS[list.length % DXF_COLORS.length], visible: true, labels: true, items: []}); k = list.length - 1; }
+      const names = new Set(add.map(i => i.name));
+      list[k] = {...list[k], items: list[k].items.filter(i => !names.has(i.name)).concat(add)};
+      layers++; items += add.length;
+    }
+    if (list.length > 500) throw new ValidationError('Слишком много слоёв DXF.');
+    ctx.db.set('dxf', list);
+    return {ok: true, layers, items};
+  }
   function dxf_remove(ctx, j) {
     const list = (ctx.db.get('dxf', []) || []).slice(), i = parseInt(j.id, 10) - 1;
     if (!list[i]) throw new ValidationError('Слой не найден: обновите страницу.');
@@ -195,6 +215,7 @@ globalThis.RZ = globalThis.RZ || {};
     '/api/task/check': (ctx, j) => RZ.tasks.check(ctx.db, j.sheet, j.id, j.visited || [], j.mode),
     '/api/dxf/layer': dxf_layer,
     '/api/dxf/remove': dxf_remove,
+    '/api/dxf/add': dxf_add,
     '/api/tracks': tracks_save,
     '/api/project/apply': (ctx, j) => RZ.project.apply(ctx.db, ctx.cfg, j.token, j.mode || 'merge', j.parts || null),
     '/api/project/discard': (ctx, j) => RZ.project.discard(j.token, ctx.db),

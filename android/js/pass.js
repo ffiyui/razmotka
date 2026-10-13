@@ -8,7 +8,7 @@
   let saved = null;
   try { saved = localStorage.getItem(KEY); } catch (e) { saved = null; }
   /* В приложении Android страница лежит внутри самого приложения: свежий пароль берётся с сайта (GitHub Pages) */
-  const NATIVE_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const NATIVE_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) || !!window.GL_PC;   // и программа для ПК
   const SITE = 'https://ffiyui.github.io/razmotka/password.txt';
   const read = () => fetch((NATIVE_APP ? SITE : 'password.txt') + '?t=' + Date.now(), {cache: 'no-store'})
     .then(r => (r.ok ? r.text() : Promise.reject(new Error(r.status)))).then(t => t.split(/\r?\n/)[0].trim());

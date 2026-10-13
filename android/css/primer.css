@@ -468,3 +468,10 @@ html.locked body { overflow: hidden; }
 
 img.gl-logo { object-fit: contain; }
 .pass-logo { border-radius: 16px; }
+
+/* ---- программа для ПК (js/pc.js): меню слева вместо нижней панели */
+.pc-only { display: none !important; }
+html.pc .pc-only { display: block !important; }
+html.pc #tabbar { display: none !important; }
+html.pc { --tabh: 0px; }
+html.pc .pc-nav { margin-top: 6px; }
